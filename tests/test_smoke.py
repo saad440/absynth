@@ -1,7 +1,7 @@
 """Smoke test: the package installs and reports its version."""
 
-import spectralab
+import absynth
 
 
 def test_version():
-    assert spectralab.__version__ == "0.1.0"
+    assert absynth.__version__ == "0.1.0"

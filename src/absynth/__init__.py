@@ -1,6 +1,6 @@
 """Generative modelling of experimental perovskite thin-film spectra.
 
-SpectraLab compares statistical and neural generators for small samples
+Absynth compares statistical and neural generators for small samples
 of measured UV-vis absorption spectra, with physically interpretable
 representations and evaluation on held-out data.
 """

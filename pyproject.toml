@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spectralab"
+name = "absynth"
 version = "0.1.0"
 description = "Generative modelling of experimental perovskite thin-film absorption spectra with physically interpretable representations"
 requires-python = ">=3.11"
