@@ -3,11 +3,10 @@
 import json
 
 import numpy as np
-import pandas as pd
 import pytest
+from synth import SAMPLE_IDS, STEP, make_curves, make_dataset, make_parameters
 
 from absynth.audit import (
-    OD_MEASURED_COLUMN,
     ODINT_COLUMNS,
     ODINT_PRIMARY,
     audit_dataset,
@@ -15,69 +14,6 @@ from absynth.audit import (
     parameter_diagnostics,
     summarize_curve_diagnostics,
 )
-from absynth.loader import THICKNESS_COLUMN, CurveSet, Dataset
-
-WAVELENGTHS = np.array([300.0, 400.0, 500.0, 600.0, 700.0])
-STEP = 100.0
-
-# Eight films covering every diagnostic category. NaN marks an
-# unmeasured wavelength, mirroring the shipped archive's convention.
-VALUES = {
-    # a healthy, fully measured curve
-    "normal": [0.001, 0.010, 0.020, 0.010, 0.001],
-    # measured data stops two grid points before the end
-    "truncated": [0.002, 0.020, 0.030, np.nan, np.nan],
-    # nothing measured at the first grid point
-    "late_start": [np.nan, 0.002, 0.004, 0.002, 0.001],
-    # a hole between measured points
-    "interior_gap": [0.001, 0.010, np.nan, 0.010, 0.001],
-    # fully measured, with one slightly negative baseline point
-    "negative": [0.001, -0.002, 0.005, 0.004, 0.002],
-    # constant nonzero curve
-    "flat": [0.02, 0.02, 0.02, 0.02, 0.02],
-    # constant zero curve
-    "zero": [0.0, 0.0, 0.0, 0.0, 0.0],
-    # nothing measured at all
-    "empty": [np.nan, np.nan, np.nan, np.nan, np.nan],
-}
-SAMPLE_IDS = list(VALUES)
-
-
-def make_curves() -> CurveSet:
-    values = np.array([VALUES[sample_id] for sample_id in SAMPLE_IDS])
-    return CurveSet(
-        wavelengths_nm=WAVELENGTHS,
-        sample_ids=pd.Index(SAMPLE_IDS, name="Sample"),
-        optical_density=values,
-    )
-
-
-def make_parameters() -> pd.DataFrame:
-    # One film per anomaly: 'empty' lacks the primary ODint,
-    # 'truncated' lacks a secondary window, 'zero' has no thickness,
-    # 'interior_gap' has nonpositive thickness.
-    # All five ODint windows exist in the real database; the fixture
-    # mirrors that schema.
-    frame = pd.DataFrame(
-        {
-            THICKNESS_COLUMN: [300.0, 600.0, 450.0, -5.0, 900.0, 1200.0, 0.0, np.nan],
-            ODINT_PRIMARY: [1.09, 1.5, 0.8, 1.2, 2.0, 0.5, 1.0, np.nan],
-            ODINT_COLUMNS[1]: [0.75, np.nan, 0.7, 0.9, 1.1, 0.3, 0.6, 0.4],
-            ODINT_COLUMNS[2]: [0.70, 1.10, 0.6, 0.8, 1.0, 0.2, 0.5, 0.3],
-            ODINT_COLUMNS[3]: [0.55, 0.90, 0.5, 0.7, 0.9, 0.2, 0.4, 0.3],
-            ODINT_COLUMNS[4]: [0.34, 0.70, 0.4, 0.5, 0.7, 0.1, 0.3, 0.2],
-            OD_MEASURED_COLUMN: [True, True, True, True, True, True, True, True],
-        },
-        index=pd.Index(SAMPLE_IDS, name="Sample"),
-    )
-    # The flag-vs-curve mismatches: 'normal' is measured but flagged
-    # False; 'empty' is empty but flagged True.
-    frame.loc["normal", OD_MEASURED_COLUMN] = False
-    return frame
-
-
-def make_dataset() -> Dataset:
-    return Dataset(curves=make_curves(), parameters=make_parameters())
 
 
 def diag_for(curves, sample_id):
@@ -162,8 +98,7 @@ def test_parameter_summary_counts():
     assert summary["missing_odint_by_column"][ODINT_PRIMARY] == 1  # 'empty'
     assert summary["missing_odint_by_column"][ODINT_COLUMNS[1]] == 1  # 'truncated'
     assert all(
-        summary["missing_odint_by_column"][column] == 0
-        for column in ODINT_COLUMNS[2:]
+        summary["missing_odint_by_column"][column] == 0 for column in ODINT_COLUMNS[2:]
     )
     assert summary["rows_missing_primary_odint"] == 1
     assert summary["od_measured_true"] == 7
@@ -173,6 +108,12 @@ def test_parameter_summary_counts():
     assert summary["thickness_le_zero"] == 2  # -5.0 and 0.0
     assert summary["thickness_min_nm"] == -5.0
     assert summary["thickness_max_nm"] == 1200.0
+    assert summary["n_substrate_stacks"] == 2
+    assert summary["substrate_missing"] == 0
+    # 'not a date' on 'flat' is counted, not silently dropped
+    assert summary["date_min"] == "2023-02-01"
+    assert summary["date_max"] == "2023-09-03"
+    assert summary["dates_unparseable"] == 1
 
 
 def test_dataset_audit_cross_checks_the_flag():

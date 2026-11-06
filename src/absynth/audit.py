@@ -45,6 +45,9 @@ ODINT_COLUMNS = (
     "Perovskite_ODint_600_900_nm",
 )
 OD_MEASURED_COLUMN = "Perovskite_OD_measured"
+DATE_COLUMN = "Date"
+SUBSTRATE_STACK_COLUMN = "Substrate_stack_sequence"
+DATE_FORMAT = "%d/%m/%Y"  # the archive's fabrication-date convention
 
 
 @dataclass(frozen=True)
@@ -199,6 +202,11 @@ def parameter_diagnostics(parameters: pd.DataFrame) -> dict[str, object]:
         - ``thickness_missing``, ``thickness_le_zero``: thickness
           sanity, in nm.
         - ``thickness_min_nm``, ``thickness_max_nm``.
+        - ``n_substrate_stacks``, ``substrate_missing``: how many
+          distinct substrate stack sequences, and films without one.
+        - ``date_min`` / ``date_max`` (ISO dates) and
+          ``dates_unparseable``: the fabrication-date range under
+          ``DATE_FORMAT``, plus the count of unusable entries.
     """
     thickness = parameters[THICKNESS_COLUMN]
     flag = parameters[OD_MEASURED_COLUMN]
@@ -217,6 +225,25 @@ def parameter_diagnostics(parameters: pd.DataFrame) -> dict[str, object]:
         "thickness_le_zero": int((thickness <= 0).sum()),
         "thickness_min_nm": float(thickness.min()),
         "thickness_max_nm": float(thickness.max()),
+        "n_substrate_stacks": int(parameters[SUBSTRATE_STACK_COLUMN].nunique()),
+        "substrate_missing": int(parameters[SUBSTRATE_STACK_COLUMN].isna().sum()),
+        **_date_facts(parameters[DATE_COLUMN]),
+    }
+
+
+def _date_facts(dates: pd.Series) -> dict[str, object]:
+    """Parse fabrication dates and reduce them to a JSON-friendly range.
+
+    The archive stores ``DD/MM/YYYY`` strings. Anything that does not
+    parse under ``DATE_FORMAT`` becomes ``NaT`` and is counted, never
+    dropped silently — the range then describes the parseable films.
+    """
+    parsed = pd.to_datetime(dates, format=DATE_FORMAT, errors="coerce")
+    valid = parsed.dropna()
+    return {
+        "dates_unparseable": int(parsed.isna().sum()),
+        "date_min": valid.min().date().isoformat() if len(valid) else None,
+        "date_max": valid.max().date().isoformat() if len(valid) else None,
     }
 
 
