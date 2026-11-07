@@ -47,6 +47,7 @@ ODINT_COLUMNS = (
 OD_MEASURED_COLUMN = "Perovskite_OD_measured"
 DATE_COLUMN = "Date"
 SUBSTRATE_STACK_COLUMN = "Substrate_stack_sequence"
+ADDITIVES_COLUMN = "Perovskite_synthesis_additives_surfactants"
 DATE_FORMAT = "%d/%m/%Y"  # the archive's fabrication-date convention
 
 
@@ -229,6 +230,27 @@ def parameter_diagnostics(parameters: pd.DataFrame) -> dict[str, object]:
         "substrate_missing": int(parameters[SUBSTRATE_STACK_COLUMN].isna().sum()),
         **_date_facts(parameters[DATE_COLUMN]),
     }
+
+
+def subset_min_observations(
+    parameters: pd.DataFrame, column: str, min_count: int
+) -> pd.Index:
+    """Rows whose category in *column* has at least *min_count* observations.
+
+    The source paper builds its modelling subset by excluding additive
+    categories "with too few observations" (threshold unspecified,
+    its §2.3). This implements that stated step so the audit can test
+    which thresholds reproduce the published subset size. The other
+    stated step — dropping films with a missing target ODint —
+    removes no rows from the shipped archive and is left to the
+    caller to compose.
+
+    Returns:
+        Indices of the kept rows, in table order.
+    """
+    counts = parameters[column].value_counts()
+    kept_arms = counts.index[counts >= min_count]
+    return parameters.index[parameters[column].isin(kept_arms)]
 
 
 def _date_facts(dates: pd.Series) -> dict[str, object]:

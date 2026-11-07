@@ -3,6 +3,7 @@
 import json
 
 import numpy as np
+import pandas as pd
 import pytest
 from synth import SAMPLE_IDS, STEP, make_curves, make_dataset, make_parameters
 
@@ -12,6 +13,7 @@ from absynth.audit import (
     audit_dataset,
     curve_diagnostics,
     parameter_diagnostics,
+    subset_min_observations,
     summarize_curve_diagnostics,
 )
 
@@ -132,3 +134,15 @@ def test_summary_is_json_serializable():
     # Numbers must be plain Python types, not numpy scalars, or the
     # reports/ artifacts would leak non-JSON values.
     assert isinstance(json.dumps(report.summary), str)
+
+
+def test_subset_min_observations_keeps_populated_arms():
+    frame = pd.DataFrame(
+        {"arm": ["a", "a", "a", "b", "b", "c"]},
+        index=pd.Index([f"film_{i}" for i in range(6)], name="Sample"),
+    )
+    kept = subset_min_observations(frame, "arm", min_count=2)
+    # 'c' has a single observation and is dropped with its rows
+    assert kept.tolist() == ["film_0", "film_1", "film_2", "film_3", "film_4"]
+    assert len(subset_min_observations(frame, "arm", min_count=1)) == 6
+    assert len(subset_min_observations(frame, "arm", min_count=4)) == 0
