@@ -19,3 +19,9 @@ where = ["src"]
 line-length = 100
 target-version = "py311"
 
+[tool.ruff.lint.per-file-ignores]
+# Notebooks carry setup-cell imports whose uses span later cells, and
+# notebooks are assembled incrementally. Unused-import noise is
+# tolerated there; real problems (undefined names, etc.) still checked.
+"notebooks/**" = ["F401"]
+
