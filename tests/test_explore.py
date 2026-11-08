@@ -1,12 +1,16 @@
 """Tests for exploratory curve statistics — synthetic, hand-checkable."""
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from absynth.explore import (
     complete_prefix_mask,
     nearest_neighbour_distances,
     pca_explained_variance,
+    pca_scores,
+    score_descriptor_correlations,
+    thickness_stability,
 )
 
 
@@ -76,3 +80,95 @@ def test_complete_prefix_mask_all_or_nothing():
     values = np.ones((3, 4))
     values[0, 0] = np.nan
     assert not complete_prefix_mask(values).any()
+
+
+# --- component scores and descriptor attribution --------------------------
+
+
+def test_pca_scores_match_the_explained_variance_ordering():
+    # Two independent directions with clearly different spreads: the
+    # leading axis carries the x-direction. Per-axis sign is
+    # arbitrary (SVD), magnitudes are not.
+    values = np.array(
+        [
+            [3.0, 0.0],
+            [-3.0, 0.0],
+            [0.0, 1.0],
+            [0.0, -1.0],
+        ]
+    )
+    scores = pca_scores(values)
+    ratios = pca_explained_variance(values)
+    assert np.allclose(np.abs(scores[:, 0]), [3.0, 3.0, 0.0, 0.0])
+    assert np.allclose(np.abs(scores[:, 1]), [0.0, 0.0, 1.0, 1.0])
+    assert ratios[0] > ratios[1]
+
+
+def test_pca_scores_truncate_like_the_variance_spectrum():
+    values = np.linspace(0.0, 1.0, 6)[:, None] * np.array([[1.0, 2.0]])
+    assert pca_scores(values, max_components=1).shape == (6, 1)
+    assert pca_scores(values).shape == (6, 2)
+
+
+def test_score_descriptor_correlations_are_pairwise_complete():
+    scores = np.array([[1.0], [2.0], [3.0], [4.0]])
+    descriptors = pd.DataFrame(
+        {
+            "exact_positive": [2.0, 4.0, 6.0, 8.0],
+            "exact_negative": [-1.0, -2.0, -3.0, -4.0],
+            # Only pairs (1,4), (3,2), (4,1) survive the gap; they lie
+            # on a line of slope -1, so the correlation stays exact.
+            "with_a_gap": [4.0, np.nan, 2.0, 1.0],
+            "constant": [7.0, 7.0, 7.0, 7.0],
+        }
+    )
+    table = score_descriptor_correlations(scores, descriptors)
+    assert table.index.tolist() == ["component_1"]
+    assert table.columns.tolist() == list(descriptors.columns)
+    assert table.loc["component_1", "exact_positive"] == pytest.approx(1.0)
+    assert table.loc["component_1", "exact_negative"] == pytest.approx(-1.0)
+    assert table.loc["component_1", "with_a_gap"] == pytest.approx(-1.0)
+    assert np.isnan(table.loc["component_1", "constant"])
+
+
+def test_thickness_stability_separates_q_from_its_thickness_factor():
+    # q varies with deviations [1,-1,-1,1], exactly orthogonal to the
+    # thickness deviations, while A = t·q inherits the thickness
+    # trend. Beer–Lambert-exact behaviour: cv(A) > cv(q), r(A,t) > 0,
+    # r(q,t) = 0.
+    thickness_nm = pd.Series([100.0, 200.0, 300.0, 400.0])
+    q = np.array([0.022, 0.018, 0.018, 0.022])
+    descriptors = pd.DataFrame(
+        {"q_integral": q, "a_integral": thickness_nm.to_numpy() * q}
+    )
+    table = thickness_stability(descriptors, thickness_nm)
+    assert table.loc["q_integral", "pearson_r"] == pytest.approx(0.0, abs=1e-12)
+    assert table.loc["a_integral", "pearson_r"] == pytest.approx(0.978, abs=5e-3)
+    assert table.loc["a_integral", "cv"] > table.loc["q_integral", "cv"]
+    # Sample-std CV of q: (0.002 · 2/√3) / 0.02
+    assert table.loc["q_integral", "cv"] == pytest.approx(0.1155, rel=1e-3)
+
+
+def test_thickness_stability_guards_for_gaps_and_singletons():
+    thickness_nm = pd.Series([100.0, 200.0, 300.0, 400.0])
+    descriptors = pd.DataFrame(
+        {
+            "constant": [0.05, 0.05, 0.05, 0.05],
+            "one_gap": [0.03, np.nan, 0.02, 0.03],
+            "one_value": [0.02, np.nan, np.nan, np.nan],
+        }
+    )
+    table = thickness_stability(descriptors, thickness_nm)
+    assert table.loc["constant", "cv"] == pytest.approx(0.0)
+    assert np.isnan(table.loc["constant", "pearson_r"])  # zero variance
+    assert np.isfinite(table.loc["one_gap", "cv"])  # three films suffice
+    assert np.isfinite(table.loc["one_gap", "pearson_r"])
+    # A single finite film supports neither spread nor correlation.
+    assert np.isnan(table.loc["one_value", "cv"])
+    assert np.isnan(table.loc["one_value", "pearson_r"])
+
+
+def test_thickness_stability_rejects_misaligned_thickness():
+    descriptors = pd.DataFrame({"d": [1.0, 2.0, 3.0]})
+    with pytest.raises(ValueError, match="shape"):
+        thickness_stability(descriptors, pd.Series([100.0, 200.0]))

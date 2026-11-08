@@ -1,15 +1,18 @@
 """Exploratory statistics for the curve matrix.
 
-Two diagnostics used by the data audit:
-
 - The PCA spectrum: how many directions actually carry the
   population's variability once neighbouring-wavelength correlation
   is accounted for.
 - Nearest-neighbour distances: how close every curve is to its
   closest neighbour, a diversity estimate whose lower end doubles as a
   near-duplicate check.
+- Component–descriptor correlations: how the leading variability
+  distributes over amplitude, edge and baseline descriptors.
+- Thickness stability: how much of each descriptor's spread is the
+  thickness factor rather than material variation, the Beer–Lambert
+  check that compares raw absorbance with its normalised form.
 
-Both require *finite* input: restrict to a complete subset first (for
+All require *finite* input: restrict to a complete subset first (for
 this archive, the 300–900 nm span is measured for all films). How to
 handle unmeasured points is a modelling decision and is not made
 here.
@@ -18,6 +21,7 @@ here.
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 
 
 def _require_finite(values: np.ndarray) -> None:
@@ -93,3 +97,97 @@ def complete_prefix_mask(values: np.ndarray) -> np.ndarray:
     measured = np.isfinite(values).all(axis=0)
     prefix = measured.cumprod()  # 1 up to the first unmeasured column
     return prefix.astype(bool)
+
+
+def pca_scores(values: np.ndarray, max_components: int | None = None) -> np.ndarray:
+    """Row coordinates of each curve on the leading principal axes.
+
+    Companion to :func:`pca_explained_variance`: same centring and
+    ordering, so ``scores[:, i]`` holds each curve's position on the
+    axis whose variance share is ``pca_explained_variance(...)[i]``.
+    The sign along each axis is arbitrary (SVD output) and only
+    magnitudes and correlations are meaningful.
+    """
+    _require_finite(values)
+    centred = values - values.mean(axis=0)
+    _, _, vt = np.linalg.svd(centred, full_matrices=False)
+    scores = centred @ vt.T
+    if max_components is not None:
+        scores = scores[:, :max_components]
+    return scores
+
+
+def _pearson(x: np.ndarray, y: np.ndarray) -> float:
+    """Pairwise-complete Pearson correlation; NaN when undefined."""
+    mask = np.isfinite(x) & np.isfinite(y)
+    if int(mask.sum()) < 2:
+        return np.nan
+    xs, ys = x[mask], y[mask]
+    if xs.std() == 0.0 or ys.std() == 0.0:
+        return np.nan
+    return float(np.corrcoef(xs, ys)[0, 1])
+
+
+def score_descriptor_correlations(
+    scores: np.ndarray, descriptors: pd.DataFrame
+) -> pd.DataFrame:
+    """Correlate each leading component with each curve descriptor.
+
+    This is the amplitude/edge/baseline attribution: a component that
+    tracks the total integral but not the edge position is amplitude
+    variation; correlations with edge or baseline descriptors locate
+    shape variation instead. Rows are components (``component_1``…),
+    columns follow ``descriptors``. Each pair uses only films where
+    both values are measured, so grid-limited descriptors (edge
+    positions on truncated curves) still participate where they can.
+    """
+    correlations = {}
+    for column in descriptors:
+        descriptor = descriptors[column].to_numpy(dtype=float)
+        correlations[column] = [
+            _pearson(scores[:, i], descriptor) for i in range(scores.shape[1])
+        ]
+    index = [f"component_{i + 1}" for i in range(scores.shape[1])]
+    return pd.DataFrame(correlations, index=index)
+
+
+def thickness_stability(
+    descriptors: pd.DataFrame, thickness_nm: pd.Series | np.ndarray
+) -> pd.DataFrame:
+    """How much each descriptor moves with film thickness.
+
+    One row per descriptor, two columns:
+
+    - ``cv``: relative spread across films (sample standard deviation
+      over mean, unmeasured entries ignored). Under exact Beer–Lambert
+      proportionality ``A ∝ t``, raw-absorbance descriptors mix
+      material variation with the thickness factor while
+      ``q``-descriptors shed it — ``cv(q) < cv(A)`` is the
+      normalisation doing its job.
+    - ``pearson_r``: pairwise-complete correlation with thickness. The
+      Beer–Lambert-exact values are 1 for ``A``-descriptors and 0 for
+      ``q``-descriptors. A residual ``q``–``t`` association is partly
+      arithmetic — at fixed ``A``, dividing by ``t`` builds in a
+      downhill trend — so read its direction cautiously; its
+      *magnitude* measures how far the population departs from exact
+      proportionality.
+
+    Thickness is consumed by position, like the conversions in
+    :mod:`absynth.preprocessing`; ``Dataset.thickness_nm`` is already
+    aligned to the curve rows by the loader.
+    """
+    thickness_nm = np.asarray(thickness_nm, dtype=float)
+    if thickness_nm.shape != (len(descriptors),):
+        raise ValueError(
+            f"thickness has shape {thickness_nm.shape}, expected ({len(descriptors)},)"
+        )
+    rows = {}
+    for column in descriptors:
+        values = descriptors[column].to_numpy(dtype=float)
+        finite = values[np.isfinite(values)]
+        if finite.size >= 2 and finite.mean() != 0.0:
+            cv = float(finite.std(ddof=1) / finite.mean())
+        else:
+            cv = np.nan
+        rows[column] = {"cv": cv, "pearson_r": _pearson(values, thickness_nm)}
+    return pd.DataFrame.from_dict(rows, orient="index")
