@@ -29,7 +29,7 @@ All 517 films carry all five integrated-OD windows, a positive measured thicknes
 
 ## Variability
 
-Over the fully measured 300–900 nm span: one principal component carries 50% of the variance, two carry 90%, four carry 99%. The population is strikingly low-dimensional. The median distance to the nearest other curve is 4.9×10⁻³ nm⁻¹ (5th percentile 1.7×10⁻³), roughly half a typical curve's peak amplitude: genuinely diverse, no near-duplicates (closest pair `BPD_sample_294`/`296` at 4.3×10⁻⁴ nm⁻¹). Euclidean distance is amplitude-dominated, so this is a diversity estimate, not a shape comparison.
+Over the fully measured 300–900 nm span: one principal component carries 87% of the variance, two reach 96% cumulatively, four reach 99%. The population is strikingly low-dimensional. The median distance to the nearest other curve is 4.9×10⁻³ nm⁻¹ (5th percentile 1.7×10⁻³), roughly half a typical curve's peak amplitude: genuinely diverse, no near-duplicates (closest pair `BPD_sample_294`/`296` at 4.3×10⁻⁴ nm⁻¹). Euclidean distance is amplitude-dominated, so this is a diversity estimate, not a shape comparison.
 
 ## The published 245-film subset
 
