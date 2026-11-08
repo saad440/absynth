@@ -20,11 +20,23 @@ Two policies follow:
   which every shipped curve is measured. A missing point inside the
   working span means the data no longer match the audited archive, so
   an exception is raised.
+
+Units and thickness
+-------------------
+
+Curves live in nm⁻¹ (``q``), absorbance ``A`` is dimensionless, and
+the conversions below multiply or divide by thickness in nm. A
+forgotten or doubled thickness factor therefore surfaces as an
+order-of-magnitude error, not a shape error.
+The audited archive contains no negative values, and nothing here
+clips or shifts them. Small negatives in a future dataset would need
+diagnosis before any positivity transform.
 """
 
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 
 from absynth.loader import CurveSet, DataContractError
 
@@ -71,3 +83,56 @@ def require_complete(curves: CurveSet) -> None:
             f"{len(offenders)} curves have unmeasured wavelengths, "
             f"e.g. {sorted(offenders)[:5]}"
         )
+
+
+def _checked_thickness(
+    thickness_nm: pd.Series | np.ndarray, n_samples: int
+) -> np.ndarray:
+    """Validate a per-film thickness vector. Return it as a plain array."""
+    thickness_nm = np.asarray(thickness_nm, dtype=float)
+    if thickness_nm.shape != (n_samples,):
+        raise ValueError(
+            f"thickness has shape {thickness_nm.shape}, expected ({n_samples},)"
+        )
+    if not np.isfinite(thickness_nm).all():
+        raise ValueError("thickness contains non-finite values")
+    if (thickness_nm <= 0).any():
+        raise ValueError("thickness must be positive to convert between A and q")
+    return thickness_nm
+
+
+def absorbance_from_q(
+    q: np.ndarray, thickness_nm: pd.Series | np.ndarray
+) -> np.ndarray:
+    """Recover absorbance from thickness-normalised curves, ``A = q·t``.
+
+    Args:
+        q: Curve matrix in nm⁻¹, shape ``(n_samples, n_wavelengths)``.
+        thickness_nm: Film thickness in nm, one entry per *row* of
+            ``q``, in the same order. A Series is consumed by position
+            (its index is ignored); ``Dataset.thickness_nm`` is already
+            aligned to the curve rows by the loader and is the safe
+            choice.
+
+    Returns:
+        Absorbance matrix, dimensionless (base-10 optical depth).
+    """
+    if q.ndim != 2:
+        raise ValueError(f"expected a 2-D curve matrix, got shape {q.shape}")
+    thickness_nm = _checked_thickness(thickness_nm, q.shape[0])
+    return q * thickness_nm[:, np.newaxis]
+
+
+def q_from_absorbance(
+    absorbance: np.ndarray, thickness_nm: pd.Series | np.ndarray
+) -> np.ndarray:
+    """Convert absorbance to thickness-normalised curves, ``q = A/t``.
+
+    Inverse of :func:`absorbance_from_q`; the result is in nm⁻¹ when
+    the thickness is in nm. A zero or negative thickness cannot
+    normalise a curve and is raised, never divided through silently.
+    """
+    if absorbance.ndim != 2:
+        raise ValueError(f"expected a 2-D curve matrix, got shape {absorbance.shape}")
+    thickness_nm = _checked_thickness(thickness_nm, absorbance.shape[0])
+    return absorbance / thickness_nm[:, np.newaxis]
