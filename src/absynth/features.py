@@ -2,9 +2,10 @@
 
 Descriptors compress each curve into few numbers with explicit
 physical meaning: integrated attenuation over wavelength windows (the
-quantity the source paper ships as ``ODint`` columns) and the baseline
-level below the absorption edge. They serve physical interpretation
-and the amplitude/edge/baseline decomposition of curve variability.
+quantity the source paper ships as ``ODint`` columns), the baseline
+level below the absorption edge, and the position and width of the
+edge descent itself. They serve physical interpretation and the
+amplitude/edge/baseline decomposition of curve variability.
 
 All descriptors consume ``q`` curves in nm⁻¹ (the archive's
 ``OD = A/t`` convention; :mod:`absynth.preprocessing`) and index
@@ -103,3 +104,73 @@ def baseline_level(
     values = _window_values(curves, lo, hi)
     name = f"q_baseline_{lo:g}_{hi:g}"
     return pd.Series(values.mean(axis=1), index=curves.sample_ids, name=name)
+
+
+PLATEAU_WINDOW_NM = (300.0, 500.0)
+"""Above-edge window defining a curve's plateau: absorption is
+saturated there, so the window median measures the curve's full
+height. TiO₂-bearing substrate stacks absorb extra UV light below
+~390 nm; the median keeps that from moving the plateau."""
+
+EDGE_LEVELS = (0.9, 0.5, 0.1)
+"""Descent levels, as fractions of the plateau, that define the edge
+position (the 50% crossing) and the 10–90 width."""
+
+
+def _descending_crossings(
+    values: np.ndarray, wavelengths_nm: np.ndarray, thresholds: np.ndarray
+) -> np.ndarray:
+    """Largest wavelength where each curve still meets its threshold.
+
+    One threshold per row. A crossing only counts when a *measured*
+    point below the threshold follows it, so a curve that stays high
+    up to its truncation yields NaN instead of an edge at the
+    truncation point.
+    """
+    _, n_cols = values.shape
+    finite = np.isfinite(values)
+    columns = np.arange(n_cols)
+    above = finite & (values >= thresholds[:, np.newaxis])
+    last_above = np.where(above, columns, -1).max(axis=1)
+    below_after = (
+        finite
+        & (values < thresholds[:, np.newaxis])
+        & (columns > last_above[:, np.newaxis])
+    )
+    crossed = (last_above >= 0) & below_after.any(axis=1)
+    return np.where(crossed, wavelengths_nm[last_above.clip(min=0)], np.nan)
+
+
+def edge_descriptors(
+    curves: CurveSet, plateau_window_nm: tuple[float, float] = PLATEAU_WINDOW_NM
+) -> pd.DataFrame:
+    """Locate each curve's absorption edge on the storage grid.
+
+    The plateau is the median ``q`` over ``plateau_window_nm``, the
+    above-edge region where absorption saturates. Scanning down the
+    descent, the edge position ``edge_50_nm`` is where the curve last
+    meets half the plateau, and ``edge_width_10_90_nm`` spans the 90%
+    and 10% crossings of the same descent.
+
+    Grid caveat: crossings are grid points, so positions carry the
+    2 nm quantisation of the storage grid — this is not an
+    optical-resolution claim, and the grid's provenance is open (see
+    ``reports/data_audit.md``). No smoothing is applied before the
+    search. A curve whose descent never reaches a level inside the
+    grid gets NaN for that descriptor; report NaN counts, never drop
+    films silently.
+    """
+    plateau = np.median(_window_values(curves, *plateau_window_nm), axis=1)
+    crossings = {
+        level: _descending_crossings(
+            curves.optical_density, curves.wavelengths_nm, level * plateau
+        )
+        for level in EDGE_LEVELS
+    }
+    return pd.DataFrame(
+        {
+            "edge_50_nm": crossings[0.5],
+            "edge_width_10_90_nm": crossings[0.1] - crossings[0.9],
+        },
+        index=curves.sample_ids,
+    )
