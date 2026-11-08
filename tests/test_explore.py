@@ -3,7 +3,11 @@
 import numpy as np
 import pytest
 
-from absynth.explore import nearest_neighbour_distances, pca_explained_variance
+from absynth.explore import (
+    complete_prefix_mask,
+    nearest_neighbour_distances,
+    pca_explained_variance,
+)
 
 
 def test_pca_spectrum_collapses_a_line():
@@ -57,3 +61,18 @@ def test_nearest_neighbour_rejects_unmeasured_points():
     values[2, 3] = np.nan
     with pytest.raises(ValueError, match="complete subset"):
         nearest_neighbour_distances(values)
+
+
+def test_complete_prefix_mask_stops_at_first_hole():
+    values = np.array([
+        [1.0, 2.0, np.nan, 4.0],
+        [1.0, 2.0, 3.0, np.nan],
+    ])
+    assert complete_prefix_mask(values).tolist() == [True, True, False, False]
+
+
+def test_complete_prefix_mask_all_or_nothing():
+    assert complete_prefix_mask(np.ones((3, 4))).all()
+    values = np.ones((3, 4))
+    values[0, 0] = np.nan
+    assert not complete_prefix_mask(values).any()

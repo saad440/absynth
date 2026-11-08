@@ -14,7 +14,9 @@ Two views are produced:
   value facts for each curve, suitable for a CSV quality-control table.
 - A JSON-serializable summary aggregating those facts over the
   population and adding parameter-table facts (missing ``ODint``
-  entries, thickness sanity, and the measured-flag cross-check).
+  entries, thickness and date sanity, the measured-flag cross-check)
+  and population-variability facts (PCA component counts and
+  nearest-neighbour distances over the fully measured span).
 
 Conventions carried over from the loader:
 
@@ -34,6 +36,11 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from absynth.explore import (
+    complete_prefix_mask,
+    nearest_neighbour_distances,
+    pca_explained_variance,
+)
 from absynth.loader import THICKNESS_COLUMN, CurveSet, Dataset
 
 ODINT_PRIMARY = "Perovskite_ODint_300_900_nm"
@@ -48,6 +55,9 @@ OD_MEASURED_COLUMN = "Perovskite_OD_measured"
 DATE_COLUMN = "Date"
 SUBSTRATE_STACK_COLUMN = "Substrate_stack_sequence"
 ADDITIVES_COLUMN = "Perovskite_synthesis_additives_surfactants"
+COMPOSITION_COLUMN = "Perovskite_synthesis_composition_short"
+SOLVENTS_COLUMN = "Perovskite_synthesis_solvents"
+ODINT_QUALITY_LABEL = 2.0  # a.u.; the source paper's low-quality marker
 DATE_FORMAT = "%d/%m/%Y"  # the archive's fabrication-date convention
 
 
@@ -205,6 +215,13 @@ def parameter_diagnostics(parameters: pd.DataFrame) -> dict[str, object]:
         - ``thickness_min_nm``, ``thickness_max_nm``.
         - ``n_substrate_stacks``, ``substrate_missing``: how many
           distinct substrate stack sequences, and films without one.
+        - ``composition_distinct``, ``solvents_distinct``: how many
+          distinct precursor compositions and solvent systems.
+        - ``additive_arm_counts``, ``substrate_stack_counts``: films
+          per additive recipe and per substrate stack.
+        - ``films_below_odint2_label``: films whose primary ``ODint``
+          is below ``ODINT_QUALITY_LABEL`` (the source paper's
+          low-quality marker) — a stratification, not a filter.
         - ``date_min`` / ``date_max`` (ISO dates) and
           ``dates_unparseable``: the fabrication-date range under
           ``DATE_FORMAT``, plus the count of unusable entries.
@@ -228,6 +245,19 @@ def parameter_diagnostics(parameters: pd.DataFrame) -> dict[str, object]:
         "thickness_max_nm": float(thickness.max()),
         "n_substrate_stacks": int(parameters[SUBSTRATE_STACK_COLUMN].nunique()),
         "substrate_missing": int(parameters[SUBSTRATE_STACK_COLUMN].isna().sum()),
+        "composition_distinct": int(parameters[COMPOSITION_COLUMN].nunique()),
+        "solvents_distinct": int(parameters[SOLVENTS_COLUMN].nunique()),
+        "additive_arm_counts": {
+            str(arm): int(count)
+            for arm, count in parameters[ADDITIVES_COLUMN].value_counts().items()
+        },
+        "substrate_stack_counts": {
+            str(stack): int(count)
+            for stack, count in parameters[SUBSTRATE_STACK_COLUMN].value_counts().items()
+        },
+        "films_below_odint2_label": int(
+            (parameters[ODINT_PRIMARY] < ODINT_QUALITY_LABEL).sum()
+        ),
         **_date_facts(parameters[DATE_COLUMN]),
     }
 
@@ -269,17 +299,70 @@ def _date_facts(dates: pd.Series) -> dict[str, object]:
     }
 
 
+def variability_facts(dataset: Dataset) -> dict[str, object]:
+    """Population-variability facts over the fully measured span.
+
+    The span is the widest leading stretch of the wavelength grid
+    measured for every film (300–900 nm in this archive). Reports the
+    number of principal components carrying 50/90/99% of the variance
+    and nearest-neighbour distance statistics — the population's
+    diversity scale, with the closest pair identified for inspection.
+    Distances are Euclidean over the span, in nm⁻¹, and are dominated
+    by amplitude differences. They are a diversity estimate and not a
+    shape comparison.
+
+    If no wavelength is measured for every film, all returned values
+    are null: statistics on a partial population would silently
+    change the sample.
+    """
+    values = dataset.curves.optical_density
+    span = complete_prefix_mask(values)
+    if not span.any():
+        return {
+            "span_start_nm": None,
+            "span_end_nm": None,
+            "pca_components_for_50pct_variance": None,
+            "pca_components_for_90pct_variance": None,
+            "pca_components_for_99pct_variance": None,
+            "nn_distance_median_nm_inv": None,
+            "nn_distance_p05_nm_inv": None,
+            "nn_distance_min_nm_inv": None,
+            "closest_pair": None,
+        }
+    complete = values[:, span]
+    wavelengths = dataset.curves.wavelengths_nm[span]
+    ratios = pca_explained_variance(complete)
+    cumulative = np.cumsum(ratios)
+    distances, neighbours = nearest_neighbour_distances(complete)
+    closest = int(distances.argmin())
+    ids = dataset.curves.sample_ids
+    return {
+        "span_start_nm": float(wavelengths[0]),
+        "span_end_nm": float(wavelengths[-1]),
+        "pca_components_for_50pct_variance": int(np.searchsorted(cumulative, 0.50)) + 1,
+        "pca_components_for_90pct_variance": int(np.searchsorted(cumulative, 0.90)) + 1,
+        "pca_components_for_99pct_variance": int(np.searchsorted(cumulative, 0.99)) + 1,
+        "nn_distance_median_nm_inv": float(np.median(distances)),
+        "nn_distance_p05_nm_inv": float(np.percentile(distances, 5)),
+        "nn_distance_min_nm_inv": float(distances.min()),
+        "closest_pair": [str(ids[closest]), str(ids[int(neighbours[closest])])],
+    }
+
+
 def audit_dataset(dataset: Dataset) -> AuditReport:
     """Run all integrity diagnostics on a loaded dataset.
 
     Also cross-checks the two views: the ``Perovskite_OD_measured``
     flag against whether each curve actually has measured points.
     Agreement is expected; disagreements are reported, not resolved —
-    deciding which view to trust belongs to the audit report.
+    deciding which view to trust belongs to the audit report. The
+    summary additionally carries population-variability facts over
+    the fully measured span (see :func:`variability_facts`).
     """
     diag = curve_diagnostics(dataset.curves)
     summary: dict[str, object] = summarize_curve_diagnostics(diag, dataset.curves)
     summary.update(parameter_diagnostics(dataset.parameters))
+    summary.update(variability_facts(dataset))
 
     # True = curve says measured, flag says not (or vice versa).
     curve_says_measured = ~diag["is_empty"]

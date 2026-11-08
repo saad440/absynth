@@ -8,14 +8,19 @@ import pytest
 from synth import SAMPLE_IDS, STEP, make_curves, make_dataset, make_parameters
 
 from absynth.audit import (
+    DATE_COLUMN,
+    OD_MEASURED_COLUMN,
     ODINT_COLUMNS,
     ODINT_PRIMARY,
+    SUBSTRATE_STACK_COLUMN,
     audit_dataset,
     curve_diagnostics,
     parameter_diagnostics,
     subset_min_observations,
     summarize_curve_diagnostics,
+    variability_facts,
 )
+from absynth.loader import THICKNESS_COLUMN, CurveSet, Dataset
 
 
 def diag_for(curves, sample_id):
@@ -112,6 +117,13 @@ def test_parameter_summary_counts():
     assert summary["thickness_max_nm"] == 1200.0
     assert summary["n_substrate_stacks"] == 2
     assert summary["substrate_missing"] == 0
+    assert summary["composition_distinct"] == 1
+    assert summary["solvents_distinct"] == 1
+    assert summary["additive_arm_counts"] == {"NaLES/DDABr": 3, "none": 3, "NaLES": 2}
+    assert summary["substrate_stack_counts"] == {"corning": 6, "glass": 2}
+    # below the 2.0 a.u. marker: 1.09, 1.5, 0.8, 1.2, 0.5, 1.0 —
+    # not 2.0 itself (strict comparison), not NaN
+    assert summary["films_below_odint2_label"] == 6
     # 'not a date' on 'flat' is counted, not silently dropped
     assert summary["date_min"] == "2023-02-01"
     assert summary["date_max"] == "2023-09-03"
@@ -146,3 +158,43 @@ def test_subset_min_observations_keeps_populated_arms():
     assert kept.tolist() == ["film_0", "film_1", "film_2", "film_3", "film_4"]
     assert len(subset_min_observations(frame, "arm", min_count=1)) == 6
     assert len(subset_min_observations(frame, "arm", min_count=4)) == 0
+
+
+def test_variability_facts_without_common_span_are_null():
+    # The synthetic fixture has one film with nothing measured, so no
+    # wavelength is measured for every film: nulls, not an error.
+    # Statistics on a partial population would silently change the sample.
+    report = audit_dataset(make_dataset())
+    assert report.summary["span_start_nm"] is None
+    assert report.summary["closest_pair"] is None
+
+
+def test_variability_facts_on_a_complete_dataset():
+    curves = CurveSet(
+        wavelengths_nm=np.array([300.0, 400.0, 500.0]),
+        sample_ids=pd.Index(["a", "b", "c"], name="Sample"),
+        optical_density=np.array([
+            [0.01, 0.02, 0.01],
+            [0.02, 0.04, 0.02],
+            [0.03, 0.06, 0.03],
+        ]),
+    )
+    parameters = pd.DataFrame(
+        {
+            THICKNESS_COLUMN: [1.0, 2.0, 3.0],
+            ODINT_PRIMARY: [1.0, 1.0, 1.0],
+            OD_MEASURED_COLUMN: [True, True, True],
+            DATE_COLUMN: ["01/01/2024", "01/01/2024", "01/01/2024"],
+            SUBSTRATE_STACK_COLUMN: ["s", "s", "s"],
+        },
+        index=pd.Index(["a", "b", "c"], name="Sample"),
+    )
+    facts = variability_facts(Dataset(curves=curves, parameters=parameters))
+
+    assert facts["span_start_nm"] == 300.0 and facts["span_end_nm"] == 500.0
+    # three rows on one line through the origin: a single component
+    assert facts["pca_components_for_50pct_variance"] == 1
+    assert facts["pca_components_for_99pct_variance"] == 1
+    # a-b and b-c are equally close; argmin ties resolve to the first row
+    assert facts["closest_pair"] == ["a", "b"]
+    assert facts["nn_distance_min_nm_inv"] == pytest.approx(0.01 * np.sqrt(6))

@@ -76,3 +76,20 @@ def nearest_neighbour_distances(values: np.ndarray) -> tuple[np.ndarray, np.ndar
     neighbours = pair_squared.argmin(axis=1)
     distances = np.sqrt(np.maximum(pair_squared.min(axis=1), 0.0))
     return distances, neighbours
+
+
+def complete_prefix_mask(values: np.ndarray) -> np.ndarray:
+    """Leading grid columns measured for *every* curve, as a mask.
+
+    Designed for trailing truncation — curves that stop early — where
+    the leading run of all-measured columns is the widest span on
+    which population statistics can run without dropping films. The
+    mask ends at the first column with any unmeasured entry, so an
+    interior hole truncates conservatively. If the first column is
+    not fully measured, the mask is all-False.
+    """
+    if values.ndim != 2:
+        raise ValueError(f"expected a 2-D curve matrix, got shape {values.shape}")
+    measured = np.isfinite(values).all(axis=0)
+    prefix = measured.cumprod()  # 1 up to the first unmeasured column
+    return prefix.astype(bool)

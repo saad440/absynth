@@ -37,9 +37,35 @@
   "thickness_max_nm": 1970.5,
   "n_substrate_stacks": 4,
   "substrate_missing": 0,
+  "composition_distinct": 1,
+  "solvents_distinct": 1,
+  "additive_arm_counts": {
+    "NaLES/DDABr": 202,
+    "none": 169,
+    "NaLES": 146
+  },
+  "substrate_stack_counts": {
+    "glass": 313,
+    "corning": 191,
+    "glass / TiO2-c / TiO2-mp": 8,
+    "FTO / TiO2-c": 5
+  },
+  "films_below_odint2_label": 86,
   "dates_unparseable": 0,
   "date_min": "2023-09-06",
   "date_max": "2024-11-12",
+  "span_start_nm": 300.0,
+  "span_end_nm": 900.0,
+  "pca_components_for_50pct_variance": 1,
+  "pca_components_for_90pct_variance": 2,
+  "pca_components_for_99pct_variance": 4,
+  "nn_distance_median_nm_inv": 0.004887516324142913,
+  "nn_distance_p05_nm_inv": 0.0016748205983505358,
+  "nn_distance_min_nm_inv": 0.0004264708961487604,
+  "closest_pair": [
+    "BPD_sample_294",
+    "BPD_sample_296"
+  ],
   "flag_curve_disagreements": 0,
   "flag_false_curve_measured": 0,
   "flag_true_curve_empty": 0
