@@ -41,7 +41,14 @@ from absynth.explore import (
     nearest_neighbour_distances,
     pca_explained_variance,
 )
-from absynth.loader import THICKNESS_COLUMN, CurveSet, Dataset
+from absynth.loader import (
+    DATE_COLUMN,
+    DATE_FORMAT,
+    SUBSTRATE_STACK_COLUMN,
+    THICKNESS_COLUMN,
+    CurveSet,
+    Dataset,
+)
 
 ODINT_PRIMARY = "Perovskite_ODint_300_900_nm"
 ODINT_COLUMNS = (
@@ -52,13 +59,10 @@ ODINT_COLUMNS = (
     "Perovskite_ODint_600_900_nm",
 )
 OD_MEASURED_COLUMN = "Perovskite_OD_measured"
-DATE_COLUMN = "Date"
-SUBSTRATE_STACK_COLUMN = "Substrate_stack_sequence"
 ADDITIVES_COLUMN = "Perovskite_synthesis_additives_surfactants"
 COMPOSITION_COLUMN = "Perovskite_synthesis_composition_short"
 SOLVENTS_COLUMN = "Perovskite_synthesis_solvents"
 ODINT_QUALITY_LABEL = 2.0  # a.u.; the source paper's low-quality marker
-DATE_FORMAT = "%d/%m/%Y"  # the archive's fabrication-date convention
 
 
 @dataclass(frozen=True)

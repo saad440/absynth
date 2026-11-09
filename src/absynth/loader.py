@@ -37,8 +37,11 @@ METADATA_CSV = "blade_perovskite_metadata.csv"
 SAMPLE_COLUMN = "Sample"
 WAVELENGTH_COLUMN = "Wavelength_nm"
 THICKNESS_COLUMN = "Perovskite_thickness_nm"
+DATE_COLUMN = "Date"
+SUBSTRATE_STACK_COLUMN = "Substrate_stack_sequence"
 
 METADATA_ENCODING = "cp1252"
+DATE_FORMAT = "%d/%m/%Y"  # the archive's fabrication-date convention
 
 
 class DataContractError(RuntimeError):

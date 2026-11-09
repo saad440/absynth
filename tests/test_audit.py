@@ -8,11 +8,9 @@ import pytest
 from synth import SAMPLE_IDS, STEP, make_curves, make_dataset, make_parameters
 
 from absynth.audit import (
-    DATE_COLUMN,
     OD_MEASURED_COLUMN,
     ODINT_COLUMNS,
     ODINT_PRIMARY,
-    SUBSTRATE_STACK_COLUMN,
     audit_dataset,
     curve_diagnostics,
     parameter_diagnostics,
@@ -20,7 +18,13 @@ from absynth.audit import (
     summarize_curve_diagnostics,
     variability_facts,
 )
-from absynth.loader import THICKNESS_COLUMN, CurveSet, Dataset
+from absynth.loader import (
+    DATE_COLUMN,
+    SUBSTRATE_STACK_COLUMN,
+    THICKNESS_COLUMN,
+    CurveSet,
+    Dataset,
+)
 
 
 def diag_for(curves, sample_id):
