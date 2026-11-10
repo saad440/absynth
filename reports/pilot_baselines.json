@@ -1,0 +1,166 @@
+{
+  "baselines": {
+    "bootstrap_floor": {
+      "mean_curve_deviation": {
+        "max_abs": 0.0005184388944844062,
+        "mean_abs": 0.00011069991969215305
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 0.0,
+        "synthetic_median": 0.0,
+        "synthetic_q10": 0.0,
+        "synthetic_q90": 4.16500117164066e-09
+      }
+    },
+    "pca": {
+      "covariance": {
+        "correlation_relative_frobenius": 0.04183831007506923,
+        "covariance_relative_frobenius": 0.06163121989697958
+      },
+      "mean_curve_deviation": {
+        "max_abs": 0.00043135771983237974,
+        "mean_abs": 5.964505145752505e-05
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 1.6471174041669034,
+        "synthetic_median": 0.009629802507943389,
+        "synthetic_q10": 0.005073544365507816,
+        "synthetic_q90": 0.018954783259486473
+      },
+      "n_components": 4,
+      "real_score_std_nm_inverse": [
+        0.0490542293850054,
+        0.015899407364669185,
+        0.007627331518133854,
+        0.004819338118699472
+      ],
+      "scales_nm_inverse": [
+        0.049054229385005414,
+        0.015899407364669188,
+        0.007627331518133861,
+        0.00481933811869947
+      ]
+    }
+  },
+  "provenance": {
+    "config_path": "configs/pilot.yaml",
+    "dataset": {
+      "checksum": "md5:6599f206e94c527a8a4a6b534e99967a",
+      "doi": "10.5281/zenodo.19237616",
+      "licence": "CC BY 4.0"
+    },
+    "git": {
+      "revision": "377cc3f5a7b6e0618cd0d8727428602e0497b5de",
+      "tracked_changes": [
+        "pyproject.toml"
+      ],
+      "untracked_source": [
+        "configs/pilot.yaml",
+        "scripts/run_pilot.py"
+      ]
+    },
+    "package_versions": {
+      "absynth": "0.1.0",
+      "matplotlib": "3.11.2",
+      "numpy": "2.5.4",
+      "scikit-learn": "1.9.1"
+    },
+    "split": {
+      "families": {
+        "corning": {
+          "eligible_films": 180,
+          "target_test_films": 36,
+          "test_dates": [
+            "2023-10-04"
+          ],
+          "test_films": 41
+        },
+        "glass": {
+          "eligible_films": 300,
+          "target_test_films": 60,
+          "test_dates": [
+            "2024-02-28",
+            "2024-11-12"
+          ],
+          "test_films": 59
+        }
+      },
+      "method": "date_block_holdout",
+      "rare_stack_max_films": 20,
+      "rare_stacks": [
+        "FTO / TiO2-c",
+        "glass / TiO2-c / TiO2-mp"
+      ],
+      "seed": 0,
+      "test": {
+        "dates": [
+          "2023-10-04",
+          "2024-02-28",
+          "2024-11-12"
+        ],
+        "n_dates": 3,
+        "n_films": 100,
+        "stacks": {
+          "corning": 41,
+          "glass": 59
+        },
+        "thickness_nm": {
+          "max": 1299.5,
+          "median": 437.0,
+          "min": 176.5
+        }
+      },
+      "test_fraction": 0.2,
+      "train": {
+        "dates": [
+          "2023-09-06",
+          "2023-09-13",
+          "2023-09-27",
+          "2023-10-11",
+          "2023-10-18",
+          "2023-10-25",
+          "2023-11-23",
+          "2023-11-30",
+          "2023-12-08",
+          "2024-01-18",
+          "2024-06-13",
+          "2024-06-20",
+          "2024-06-27",
+          "2024-07-24",
+          "2024-08-01",
+          "2024-08-08",
+          "2024-08-14"
+        ],
+        "n_dates": 17,
+        "n_films": 417,
+        "stacks": {
+          "FTO / TiO2-c": 5,
+          "corning": 150,
+          "glass": 254,
+          "glass / TiO2-c / TiO2-mp": 8
+        },
+        "thickness_nm": {
+          "max": 1970.5,
+          "median": 440.0,
+          "min": 107.5
+        }
+      },
+      "train_locked_dates": [
+        "2023-09-06",
+        "2024-08-14"
+      ]
+    }
+  },
+  "reference_metrics": {
+    "n_films": 517,
+    "n_heldout_films": 100,
+    "n_training_films": 417,
+    "population_nearest_neighbour_median_nm_inverse": 0.004887516324142913
+  }
+}

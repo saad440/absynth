@@ -1,0 +1,26 @@
+# Pilot experiment: statistical baselines evaluated on the date-block
+# holdout. Every seed and count the pilot uses lives in this file, so
+# the written record (reports/pilot_baselines.json) and the figures are
+# reproducible from it alone.
+
+data:
+  archive_dir: data/raw/Dataset
+
+split:
+  test_fraction: 0.2
+  seed: 0
+  rare_stack_max_films: 20
+
+pca:
+  # The audit found 99% of the working-span variance in four
+  # components; the pilot keeps those four.
+  n_components: 4
+
+sampling:
+  # Each baseline draws as many synthetic curves as there are training
+  # films, so population-level metrics compare like-sized populations.
+  # With the pinned split seed this is 417; changing the split changes
+  # the count, and this file must say so.
+  n_samples: 417
+  seed: 1
+  floor_seed: 2
