@@ -56,14 +56,9 @@
       "licence": "CC BY 4.0"
     },
     "git": {
-      "revision": "377cc3f5a7b6e0618cd0d8727428602e0497b5de",
-      "tracked_changes": [
-        "pyproject.toml"
-      ],
-      "untracked_source": [
-        "configs/pilot.yaml",
-        "scripts/run_pilot.py"
-      ]
+      "revision": "f4eccb3d671ad15c5d020bc52c6faf8aa4e9303e",
+      "tracked_changes": [],
+      "untracked_source": []
     },
     "package_versions": {
       "absynth": "0.1.0",
