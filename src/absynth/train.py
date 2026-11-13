@@ -17,6 +17,9 @@ over a small random subset of the training films, differentiates it
 with respect to the weights, and moves the weights a short distance
 downhill. One pass over all training films is an epoch, and the loss
 recorded per epoch makes convergence visible rather than assumed.
+The fit also stores the training films' final codes, so a Gaussian
+fitted to them can generate curves without any variational machinery:
+the KL-free reference the variational model is measured against.
 
 The variational model trains on the same loop with one extra loss
 term. Its objective is the reconstruction mean squared error plus
@@ -106,6 +109,10 @@ class TrainedAutoEncoder:
             films. Every curve crossing between nm⁻¹ and the model's
             standardized units passes through it.
         config: The configuration that produced the fit.
+        codes: The final codes of the training films, shape
+            ``(n_training, n_latent)``, computed after training from
+            the fitted weights. This is the fitted representation
+            itself, and the population :meth:`sample` draws from.
         epoch_losses: Mean squared error per epoch, in standardized
             units squared, averaged over all training films. A falling
             record documents convergence; a flat one documents its
@@ -115,7 +122,41 @@ class TrainedAutoEncoder:
     model: AutoEncoder
     standardizer: CurveStandardizer
     config: AutoEncoderConfig
+    codes: np.ndarray
     epoch_losses: tuple[float, ...]
+
+    def sample(self, n_samples: int, seed: int) -> np.ndarray:
+        """Draw synthetic curves in nm⁻¹ without variational machinery.
+
+        The plain autoencoder has no prior to draw from: nothing in its
+        training says which codes are plausible. This generator
+        measures instead of trains. A multivariate Gaussian is fitted
+        to the training codes, codes are drawn from it, and the
+        decoder turns them into curves. The fit is deterministic given
+        the codes; the seed drives the draws. Nothing is clipped.
+
+        The variational model is trained toward a prior. This
+        generator accepts whatever code cloud training happened to
+        produce. If both look the same under the frozen evaluation,
+        the variational machinery added nothing for this dataset.
+
+        Args:
+            n_samples: Number of curves to draw.
+            seed: Seed for the numpy generator driving the draws.
+
+        Returns:
+            Curve matrix in nm⁻¹, shape
+            ``(n_samples, n_wavelengths)``.
+        """
+        rng = np.random.default_rng(seed)
+        drawn = rng.multivariate_normal(
+            mean=self.codes.mean(axis=0),
+            cov=np.cov(self.codes, rowvar=False),
+            size=n_samples,
+        )
+        with torch.no_grad():
+            standardized = self.model.decode(torch.from_numpy(drawn.astype(np.float32)))
+        return self.standardizer.inverse_transform(standardized.numpy())
 
 
 def train_autoencoder(training_curves: np.ndarray, config: AutoEncoderConfig) -> TrainedAutoEncoder:
@@ -172,10 +213,13 @@ def train_autoencoder(training_curves: np.ndarray, config: AutoEncoderConfig) ->
             optimizer.step()
             epoch_loss += float(loss.detach()) * batch.shape[0]
         epoch_losses.append(epoch_loss / n_training)
+    with torch.no_grad():
+        codes = model.encode(standardized).numpy()
     return TrainedAutoEncoder(
         model=model,
         standardizer=standardizer,
         config=config,
+        codes=codes,
         epoch_losses=tuple(epoch_losses),
     )
 

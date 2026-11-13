@@ -207,3 +207,23 @@ def test_vae_sample_is_reproducible_and_well_shaped():
 def test_invalid_kl_weight_raises():
     with pytest.raises(ValueError, match="kl_weight"):
         make_vae_config(kl_weight=0.0)
+
+
+# --- code-sampling generator ---------------------------------------------
+
+
+def test_trained_autoencoder_stores_training_codes():
+    result = train_autoencoder(make_curves(), make_config(n_latent=3))
+    assert result.codes.shape == (N_CURVES, 3)
+    assert np.isfinite(result.codes).all()
+
+
+def test_ae_sample_is_reproducible_and_well_shaped():
+    result = train_autoencoder(make_curves(), make_config(epochs=3))
+    first = result.sample(10, seed=3)
+    again = result.sample(10, seed=3)
+    other = result.sample(10, seed=4)
+    assert first.shape == (10, GRID)
+    assert np.isfinite(first).all()
+    assert np.array_equal(first, again)
+    assert not np.array_equal(first, other)
