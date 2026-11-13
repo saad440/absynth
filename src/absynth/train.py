@@ -18,6 +18,20 @@ with respect to the weights, and moves the weights a short distance
 downhill. One pass over all training films is an epoch, and the loss
 recorded per epoch makes convergence visible rather than assumed.
 
+The variational model trains on the same loop with one extra loss
+term. Its objective is the reconstruction mean squared error plus
+``kl_weight`` times the KL divergence of the code Gaussians against
+the standard-normal prior. The weight has a statistical reading:
+matching term by term against the exact Gaussian objective shows the
+weight implies an observation variance of ``kl_weight · n_wavelengths
+/ 2`` in standardized units. Weights far above the anchor collapse
+the codes toward the prior. Weights far below let the codes drift
+from it, until prior draws decode off-distribution. Setting the
+implied variance to the standardized data's own spread, 1, gives the
+anchor ``kl_weight = 2 / n_wavelengths`` (about 0.0066 on the
+301-point working span), a reasonable centre for a small weight scan.
+Every variational fit records the variance its weight implied.
+
 Reproducibility: the configuration's seed drives the weight
 initialization and the batch shuffling through dedicated torch random
 generators, so a given configuration and curve matrix reproduce a
@@ -33,7 +47,12 @@ import torch
 from torch.nn.functional import mse_loss
 from torch.utils.data import DataLoader
 
-from absynth.models import AutoEncoder, CurveStandardizer
+from absynth.models import (
+    AutoEncoder,
+    CurveStandardizer,
+    VariationalAutoEncoder,
+    latent_kl_per_dimension,
+)
 
 
 @dataclass(frozen=True)
@@ -158,4 +177,164 @@ def train_autoencoder(training_curves: np.ndarray, config: AutoEncoderConfig) ->
         standardizer=standardizer,
         config=config,
         epoch_losses=tuple(epoch_losses),
+    )
+
+
+@dataclass(frozen=True)
+class VariationalAutoEncoderConfig(AutoEncoderConfig):
+    """The variational training recipe, adding the KL weight to the autoencoder's.
+
+    Attributes:
+        kl_weight: Weight of the KL term in ``MSE + kl_weight · KL``.
+            The exact Gaussian objective it approximates implies an
+            observation variance of ``kl_weight · n_wavelengths / 2``
+            in standardized units. The anchor value 2/n_wavelengths
+            sets that implied variance to the standardized data's
+            total spread; scan weights around it, and rely on the fit
+            record, which states the implied variance either way.
+    """
+
+    kl_weight: float
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.kl_weight <= 0:
+            raise ValueError("kl_weight must be positive")
+
+
+@dataclass(frozen=True)
+class TrainedVariationalAutoEncoder:
+    """A fitted variational autoencoder with its diagnostics.
+
+    Attributes:
+        model: The trained network with its final weights.
+        standardizer: The per-wavelength scaling fitted on the training
+            films.
+        config: The configuration that produced the fit.
+        epoch_reconstruction: Mean squared error per epoch, in
+            standardized units squared, averaged over all training
+            films.
+        epoch_kl: Mean per-curve KL divergence per epoch, averaged over
+            all training films.
+        latent_kl: Per-dimension mean KL over the training films at the
+            end of training, computed from the posterior parameters.
+            Dimensions near zero are collapsed. The encoder no longer
+            uses them, and how many dimensions survive is part of the
+            reported record.
+        implied_noise_variance: The observation variance in standardized
+            units that the KL weight implies,
+            ``kl_weight · n_wavelengths / 2``. Recorded with the fit
+            so the objective's noise assumption is always stated.
+    """
+
+    model: VariationalAutoEncoder
+    standardizer: CurveStandardizer
+    config: VariationalAutoEncoderConfig
+    epoch_reconstruction: tuple[float, ...]
+    epoch_kl: tuple[float, ...]
+    latent_kl: tuple[float, ...]
+    implied_noise_variance: float
+
+    def sample(self, n_samples: int, seed: int) -> np.ndarray:
+        """Draw synthetic curves in nm⁻¹ from the prior.
+
+        Codes are drawn from the standard normal, decoded, and moved
+        back through the standardizer to nm⁻¹. Nothing is clipped.
+        Values outside the measured range are model outputs to be
+        evaluated, not errors to hide.
+
+        Args:
+            n_samples: Number of curves to draw.
+            seed: Seed for a dedicated torch generator, so the draw is
+                reproducible independently of training.
+
+        Returns:
+            Curve matrix in nm⁻¹, shape
+            ``(n_samples, n_wavelengths)``.
+        """
+        generator = torch.Generator().manual_seed(seed)
+        with torch.no_grad():
+            codes = torch.randn(n_samples, self.model.n_latent, generator=generator)
+            standardized = self.model.decode(codes).numpy()
+        return self.standardizer.inverse_transform(standardized)
+
+
+def train_variational_autoencoder(
+    training_curves: np.ndarray, config: VariationalAutoEncoderConfig
+) -> TrainedVariationalAutoEncoder:
+    """Fit a variational autoencoder on training curves.
+
+    The same contract as :func:`train_autoencoder`: the standardizer is
+    fitted on these curves only, held-out films must never reach this
+    function, and a given configuration and curve matrix reproduce the
+    run exactly.
+
+    Args:
+        training_curves: Curve matrix in nm⁻¹, shape
+            ``(n_training, n_wavelengths)``, complete on the working
+            span. Row order is irrelevant.
+        config: Architecture and optimization numbers, including the
+            KL weight.
+
+    Returns:
+        A :class:`TrainedVariationalAutoEncoder` with the loss history
+        and the collapse diagnostic.
+
+    Raises:
+        ValueError: If the curves are empty or non-finite, if a
+            wavelength column never varies, or if a configuration
+            value fails its checks, including a latent width that is
+            not smaller than the grid.
+    """
+    curves = np.asarray(training_curves, dtype=float)
+    if curves.ndim != 2 or curves.shape[0] == 0:
+        raise ValueError("training curves must be a non-empty (n_curves, n_wavelengths) matrix")
+    standardizer = CurveStandardizer.fit(curves)
+    standardized = torch.from_numpy(standardizer.transform(curves).astype(np.float32))
+
+    torch.manual_seed(config.seed)
+    model = VariationalAutoEncoder(
+        n_wavelengths=curves.shape[1],
+        n_hidden=config.n_hidden,
+        n_latent=config.n_latent,
+    )
+    batches = DataLoader(
+        standardized,
+        batch_size=config.batch_size,
+        shuffle=True,
+        generator=torch.Generator().manual_seed(config.seed),
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+
+    n_training = standardized.shape[0]
+    epoch_reconstruction = []
+    epoch_kl = []
+    for _ in range(config.epochs):
+        epoch_mse = 0.0
+        epoch_kl_sum = 0.0
+        for batch in batches:
+            optimizer.zero_grad()
+            mean, std = model.encode(batch)
+            rebuilt = model.decode(model.sample_latent(mean, std))
+            reconstruction = mse_loss(rebuilt, batch)
+            kl = latent_kl_per_dimension(mean, std).sum(dim=1).mean()
+            loss = reconstruction + config.kl_weight * kl
+            loss.backward()
+            optimizer.step()
+            epoch_mse += float(reconstruction.detach()) * batch.shape[0]
+            epoch_kl_sum += float(kl.detach()) * batch.shape[0]
+        epoch_reconstruction.append(epoch_mse / n_training)
+        epoch_kl.append(epoch_kl_sum / n_training)
+
+    with torch.no_grad():
+        mean, std = model.encode(standardized)
+        final_kl = latent_kl_per_dimension(mean, std).mean(dim=0)
+    return TrainedVariationalAutoEncoder(
+        model=model,
+        standardizer=standardizer,
+        config=config,
+        epoch_reconstruction=tuple(epoch_reconstruction),
+        epoch_kl=tuple(epoch_kl),
+        latent_kl=tuple(float(value) for value in final_kl),
+        implied_noise_variance=config.kl_weight * curves.shape[1] / 2.0,
     )

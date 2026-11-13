@@ -4,7 +4,12 @@ import numpy as np
 import pytest
 import torch
 
-from absynth.train import AutoEncoderConfig, train_autoencoder
+from absynth.train import (
+    AutoEncoderConfig,
+    VariationalAutoEncoderConfig,
+    train_autoencoder,
+    train_variational_autoencoder,
+)
 
 GRID = 16
 N_CURVES = 32
@@ -117,3 +122,88 @@ def test_latent_width_must_be_a_bottleneck():
 def test_invalid_configurations_raise(override, message):
     with pytest.raises(ValueError, match=message):
         make_config(**override)
+
+
+# --- variational autoencoder ---------------------------------------------
+
+
+def make_vae_config(**overrides):
+    """A small variational default with per-test overrides.
+
+    The KL weight is the anchor value 2/n_wavelengths.
+    """
+    values = {
+        "n_hidden": 16,
+        "n_latent": 2,
+        "epochs": 5,
+        "learning_rate": 5e-3,
+        "batch_size": 8,
+        "seed": 0,
+        "kl_weight": 2.0 / GRID,
+    }
+    values.update(overrides)
+    return VariationalAutoEncoderConfig(**values)
+
+
+def test_vae_same_config_reproduces_run():
+    curves = make_curves()
+    first = train_variational_autoencoder(curves, make_vae_config())
+    second = train_variational_autoencoder(curves, make_vae_config())
+    for weight_first, weight_second in zip(first.model.parameters(), second.model.parameters()):
+        assert torch.equal(weight_first, weight_second)
+    assert first.epoch_reconstruction == second.epoch_reconstruction
+    assert first.epoch_kl == second.epoch_kl
+
+
+def test_vae_history_records_both_loss_terms():
+    result = train_variational_autoencoder(make_curves(), make_vae_config(epochs=6))
+    assert len(result.epoch_reconstruction) == 6
+    assert len(result.epoch_kl) == 6
+    assert all(value > 0 for value in result.epoch_reconstruction)
+    assert all(value >= 0 for value in result.epoch_kl)
+
+
+def test_implied_noise_variance_matches_formula():
+    result = train_variational_autoencoder(make_curves(), make_vae_config(kl_weight=0.5))
+    assert result.implied_noise_variance == pytest.approx(0.5 * GRID / 2.0)
+
+
+def test_latent_kl_diagnostic_is_per_dimension():
+    result = train_variational_autoencoder(make_curves(), make_vae_config(n_latent=3))
+    assert len(result.latent_kl) == 3
+    assert all(value >= 0.0 for value in result.latent_kl)
+
+
+def test_weaker_kl_weight_lets_codes_drift_from_the_prior():
+    # The rate side of the rate-distortion trade-off: a weak KL term
+    # leaves the code Gaussians free to carry whatever curve detail
+    # reconstruction wants (large KL), while the anchor weight holds
+    # them closer to the prior (smaller KL). Fixed seeds make the
+    # comparison deterministic. The opposite pressure, collapse, shows
+    # up as individual dimensions near zero in latent_kl.
+    curves = make_curves()
+    anchored = train_variational_autoencoder(curves, make_vae_config(epochs=150))
+    weak = train_variational_autoencoder(curves, make_vae_config(epochs=150, kl_weight=1e-4))
+    assert sum(weak.latent_kl) > sum(anchored.latent_kl)
+
+
+def test_vae_training_reduces_reconstruction_error():
+    curves = make_curves()
+    result = train_variational_autoencoder(curves, make_vae_config(epochs=120, learning_rate=5e-3))
+    assert result.epoch_reconstruction[-1] < 0.5 * result.epoch_reconstruction[0]
+
+
+def test_vae_sample_is_reproducible_and_well_shaped():
+    result = train_variational_autoencoder(make_curves(), make_vae_config(epochs=3))
+    first = result.sample(10, seed=3)
+    again = result.sample(10, seed=3)
+    other = result.sample(10, seed=4)
+    assert first.shape == (10, GRID)
+    assert np.isfinite(first).all()
+    assert np.array_equal(first, again)
+    assert not np.array_equal(first, other)
+
+
+def test_invalid_kl_weight_raises():
+    with pytest.raises(ValueError, match="kl_weight"):
+        make_vae_config(kl_weight=0.0)
