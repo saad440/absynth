@@ -5,7 +5,7 @@ Usage (from the repository root, after ``pip install -e ".[dev]"``):
     python scripts/run_pilot.py [--config configs/pilot.yaml]
         [--report-dir reports] [--figure-dir figures]
 
-The script is orchestration only — all logic lives in ``absynth``.
+The script is orchestration only. All logic lives in ``absynth``.
 It fits the two statistical baselines on the training films selected
 by :func:`absynth.splits.date_block_holdout`, evaluates them against
 held-out films with :mod:`absynth.evaluation`, and writes one JSON
@@ -19,18 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
-import sys
 from pathlib import Path
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import sklearn
 import yaml
 
-import absynth
-from absynth import __version__
 from absynth.baselines import bootstrap_resample, fit_pca_generator
 from absynth.data import DATASETS
 from absynth.evaluation import (
@@ -44,86 +38,8 @@ from absynth.evaluation import (
 from absynth.explore import nearest_neighbour_distances
 from absynth.loader import load_dataset
 from absynth.preprocessing import require_complete, restrict_to_span
+from absynth.provenance import git_provenance, package_versions
 from absynth.splits import date_block_holdout
-
-
-def _run_git(*arguments: str) -> str | None:
-    """Trailing newline removed; ``None`` if git is unavailable.
-
-    Only the trailing newline is removed: ``git status --porcelain``
-    marks staged/unstaged state with *leading* spaces, which stripping
-    would corrupt.
-    """
-    try:
-        result = subprocess.run(["git", *arguments], capture_output=True, text=True, check=True)
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    return result.stdout.rstrip("\n")
-
-
-def _path_is_untracked(relative: str, untracked_directories: set[str]) -> bool:
-    """True if the path itself, or any directory holding it, is untracked."""
-    parts = relative.split("/")
-    return any(
-        "/".join(parts[:count]) in untracked_directories for count in range(1, len(parts) + 1)
-    )
-
-
-def _git_provenance(config_path: Path) -> dict[str, object] | None:
-    """Revision, tracked changes, and untracked files that shape the run.
-
-    Three facts, one honesty level each. The revision is the exact
-    code state when tracked files are unmodified. ``tracked_changes``
-    names tracked files that differ from it. Of all untracked files,
-    only those that actually shape the numbers are reported: modules
-    the interpreter imported from the package tree, this script, and
-    the configuration file. Data, records and figures are untracked
-    too, but they enter provenance through other fields (the dataset
-    checksum, the record itself), so they are not listed.
-    """
-    revision = _run_git("rev-parse", "HEAD")
-    toplevel = _run_git("rev-parse", "--show-toplevel")
-    status = _run_git("status", "--porcelain")
-    if revision is None or toplevel is None or status is None:
-        return None
-    toplevel_path = Path(toplevel).resolve()
-    # A wholly untracked directory collapses to one "?? directory/"
-    # entry, so membership has to ask about ancestor directories too.
-    untracked = {line[3:].rstrip("/") for line in status.splitlines() if line[:2] == "??"}
-    tracked_changes = [line[3:] for line in status.splitlines() if line[:2] != "??"]
-
-    package_root = Path(absynth.__file__).resolve().parent
-    shaped: set[Path] = {Path(__file__).resolve(), config_path.resolve()}
-    for module in list(sys.modules.values()):
-        module_file = getattr(module, "__file__", None)
-        if module_file is not None:
-            module_path = Path(module_file).resolve()
-            if package_root in module_path.parents:
-                shaped.add(module_path)
-
-    untracked_source = []
-    for path in sorted(shaped):
-        try:
-            relative = path.relative_to(toplevel_path).as_posix()
-        except ValueError:  # a file outside the repository cannot be untracked in it
-            continue
-        if _path_is_untracked(relative, untracked):
-            untracked_source.append(relative)
-    return {
-        "revision": revision,
-        "tracked_changes": tracked_changes,
-        "untracked_source": untracked_source,
-    }
-
-
-def _package_versions() -> dict[str, str]:
-    """Versions of everything the record's numbers depend on."""
-    return {
-        "absynth": __version__,
-        "numpy": np.__version__,
-        "matplotlib": matplotlib.__version__,
-        "scikit-learn": sklearn.__version__,
-    }
 
 
 def _mean_curve_figure(
@@ -137,15 +53,25 @@ def _mean_curve_figure(
     band_synthetic = quantile_band(synthetic, quantiles=(0.1, 0.5, 0.9))
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.fill_between(
-        wavelengths_nm, band_real[0], band_real[2], color="0.55", alpha=0.35,
+        wavelengths_nm,
+        band_real[0],
+        band_real[2],
+        color="0.55",
+        alpha=0.35,
         label="measured (training days), 10–90% band",
     )
     ax.plot(wavelengths_nm, band_real[1], color="0.15", label="measured median")
     ax.fill_between(
-        wavelengths_nm, band_synthetic[0], band_synthetic[2], color="tab:orange",
-        alpha=0.30, label="PCA synthetic, 10–90% band",
+        wavelengths_nm,
+        band_synthetic[0],
+        band_synthetic[2],
+        color="tab:orange",
+        alpha=0.30,
+        label="PCA synthetic, 10–90% band",
     )
-    ax.plot(wavelengths_nm, band_synthetic[1], "--", color="tab:orange", label="PCA synthetic median")
+    ax.plot(
+        wavelengths_nm, band_synthetic[1], "--", color="tab:orange", label="PCA synthetic median"
+    )
     ax.set_xlabel("Wavelength (nm)")
     ax.set_ylabel(r"Optical density $q$ (nm$^{-1}$)")
     ax.set_title("PCA synthetic population against measured films")
@@ -164,8 +90,8 @@ def _nn_distance_figure(
 ) -> None:
     """Cumulative distance profiles: the memorization comparison.
 
-    The floor sits at exactly zero (it only copies); held-out films
-    give the honest novelty scale of a genuinely new film; a generator
+    The floor sits at exactly zero, since it only copies. Held-out
+    films give the novelty scale of a genuinely new film. A generator
     is read against both.
     """
     fig, ax = plt.subplots(figsize=(8, 4.5))
@@ -177,8 +103,11 @@ def _nn_distance_figure(
     for values, label, color, style in profiles:
         ordered = np.sort(values)
         ax.plot(
-            ordered, np.arange(1, ordered.size + 1) / ordered.size,
-            label=label, color=color, linestyle=style,
+            ordered,
+            np.arange(1, ordered.size + 1) / ordered.size,
+            label=label,
+            color=color,
+            linestyle=style,
         )
     ax.axvline(population_median, color="0.3", linestyle=":", label="measured population median")
     ax.set_xlabel(r"Distance to nearest training film (nm$^{-1}$)")
@@ -236,8 +165,8 @@ def main() -> None:
     record = {
         "provenance": {
             "config_path": str(args.config),
-            "git": _git_provenance(args.config),
-            "package_versions": _package_versions(),
+            "git": git_provenance(args.config, Path(__file__)),
+            "package_versions": package_versions(),
             "dataset": {
                 "doi": DATASETS["unam_blade_coated"]["doi"],
                 "checksum": DATASETS["unam_blade_coated"]["checksum"],
