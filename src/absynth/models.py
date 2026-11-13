@@ -38,6 +38,8 @@ configuration, not for the model class.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 from torch import nn
@@ -191,3 +193,122 @@ class AutoEncoder(nn.Module):
             ValueError: If the input fails :meth:`encode`'s checks.
         """
         return self.decode(self.encode(curves))
+
+
+def _checked_numpy_matrix(values: np.ndarray, expected_width: int | None = None) -> np.ndarray:
+    """Validate a numpy curve or representation matrix as a float array.
+
+    The numpy counterpart of :func:`_checked_matrix`, for code that
+    stays outside torch: data handling and evaluation. Non-empty,
+    finite, and (when a width is given) of the promised width.
+    """
+    matrix = np.asarray(values, dtype=float)
+    if matrix.ndim != 2 or matrix.shape[0] == 0:
+        raise ValueError("expected a non-empty (n_curves, n_wavelengths) matrix")
+    if expected_width is not None and matrix.shape[1] != expected_width:
+        raise ValueError(f"matrix has {matrix.shape[1]} columns, expected {expected_width}")
+    if not np.isfinite(matrix).all():
+        raise ValueError("matrix must be finite")
+    return matrix
+
+
+@dataclass(frozen=True)
+class CurveStandardizer:
+    """Per-wavelength shift and rescaling fitted on one population of curves.
+
+    Gradient descent has no sense of units, and these curves carry
+    values of order 10⁻³ to 10⁻² nm⁻¹, far below the magnitudes that
+    train well. Fitting measures, wavelength by wavelength, the mean
+    and the standard deviation of the population. Transform then
+    subtracts the mean and divides by the standard deviation, which
+    leaves every fitted wavelength at mean 0 with spread 1, expressed
+    in dimensionless units. The stored map moves any later curve, real
+    or generated, between nm⁻¹ and these standardized units exactly.
+
+    The fitting population is the training films. Fitting on any film
+    that later serves as an evaluation target would leak information
+    about the evaluation population into the model and bias held-out
+    scores optimistic (data leakage).
+
+    Attributes:
+        mean: Per-wavelength mean of the fitting curves, nm⁻¹, shape
+            ``(n_wavelengths,)``.
+        std: Per-wavelength population standard deviation (``ddof=0``)
+            of the fitting curves, nm⁻¹, shape ``(n_wavelengths,)``.
+    """
+
+    mean: np.ndarray
+    std: np.ndarray
+
+    def __post_init__(self) -> None:
+        mean = np.asarray(self.mean, dtype=float)
+        std = np.asarray(self.std, dtype=float)
+        if mean.ndim != 1 or mean.shape != std.shape or mean.size == 0:
+            raise ValueError("mean and std must be non-empty, equal-length 1-D arrays")
+        if not np.isfinite(mean).all() or not np.isfinite(std).all():
+            raise ValueError("mean and std must be finite")
+        if (std <= 0).any():
+            raise ValueError("std entries must be positive to scale curves")
+
+    @classmethod
+    def fit(cls, curves: np.ndarray) -> CurveStandardizer:
+        """Measure per-wavelength mean and spread of a curve population.
+
+        Args:
+            curves: Curve matrix in nm⁻¹, shape
+                ``(n_curves, n_wavelengths)``.
+
+        Returns:
+            A fitted standardizer.
+
+        Raises:
+            ValueError: If the matrix is empty, non-finite, or contains
+                a wavelength column that never varies across the
+                fitting curves, which has no spread to scale by.
+        """
+        matrix = _checked_numpy_matrix(curves)
+        mean = matrix.mean(axis=0)
+        std = matrix.std(axis=0)
+        if (std == 0).any():
+            column = int(np.flatnonzero(std == 0)[0])
+            raise ValueError(
+                f"wavelength column {column} has zero variance across the "
+                "fitting curves; there is no spread to scale by"
+            )
+        return cls(mean=mean, std=std)
+
+    def transform(self, curves: np.ndarray) -> np.ndarray:
+        """Map curves to standardized values, ``(curves - mean) / std``.
+
+        Args:
+            curves: Curve matrix in nm⁻¹, shape
+                ``(n_curves, n_wavelengths)``.
+
+        Returns:
+            Standardized matrix, dimensionless, same shape.
+
+        Raises:
+            ValueError: If the matrix is empty, non-finite, or does not
+                match the fitted wavelength count.
+        """
+        matrix = _checked_numpy_matrix(curves, expected_width=len(self.mean))
+        return (matrix - self.mean) / self.std
+
+    def inverse_transform(self, standardized: np.ndarray) -> np.ndarray:
+        """Map standardized values back to nm⁻¹, ``standardized · std + mean``.
+
+        Inverse of :meth:`transform` up to floating-point rounding.
+
+        Args:
+            standardized: Standardized matrix, dimensionless, shape
+                ``(n_curves, n_wavelengths)``.
+
+        Returns:
+            Curve matrix in nm⁻¹, same shape.
+
+        Raises:
+            ValueError: If the matrix is empty, non-finite, or does not
+                match the fitted wavelength count.
+        """
+        matrix = _checked_numpy_matrix(standardized, expected_width=len(self.mean))
+        return matrix * self.std + self.mean

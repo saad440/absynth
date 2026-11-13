@@ -5,7 +5,7 @@ import pytest
 import torch
 from torch.nn.functional import mse_loss
 
-from absynth.models import AutoEncoder
+from absynth.models import AutoEncoder, CurveStandardizer
 
 GRID = 16
 
@@ -155,3 +155,56 @@ def test_training_reduces_reconstruction_error():
         value.backward()
         optimizer.step()
     assert float(value.detach()) < 0.05 * initial
+
+
+# --- curve standardizer --------------------------------------------------
+
+
+def test_transform_gives_zero_mean_unit_spread_columns():
+    curves = make_curves()
+    standardized = CurveStandardizer.fit(curves).transform(curves)
+    assert standardized.mean(axis=0) == pytest.approx(np.zeros(GRID), abs=1e-12)
+    assert standardized.std(axis=0) == pytest.approx(np.ones(GRID), abs=1e-12)
+
+
+def test_inverse_transform_undoes_transform():
+    curves = make_curves()
+    standardizer = CurveStandardizer.fit(curves)
+    round_trip = standardizer.inverse_transform(standardizer.transform(curves))
+    assert round_trip == pytest.approx(curves)
+
+
+def test_manual_standardizer_scales_by_stored_values():
+    standardizer = CurveStandardizer(mean=np.array([1.0, 2.0]), std=np.array([2.0, 4.0]))
+    standardized = standardizer.transform(np.array([[3.0, 6.0]]))
+    assert standardized == pytest.approx(np.array([[1.0, 1.0]]))
+    assert standardizer.inverse_transform(standardized) == pytest.approx(np.array([[3.0, 6.0]]))
+
+
+def test_fit_rejects_zero_variance_column():
+    curves = make_curves()
+    curves[:, 3] = 7.0
+    with pytest.raises(ValueError, match="zero variance"):
+        CurveStandardizer.fit(curves)
+
+
+def test_fit_rejects_nonfinite_or_empty_curves():
+    curves = make_curves()
+    curves[0, 0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        CurveStandardizer.fit(curves)
+    with pytest.raises(ValueError, match="non-empty"):
+        CurveStandardizer.fit(np.zeros((0, GRID)))
+
+
+def test_transform_rejects_wrong_width():
+    standardizer = CurveStandardizer(mean=np.ones(3), std=np.ones(3))
+    with pytest.raises(ValueError, match="columns"):
+        standardizer.transform(np.zeros((2, 4)))
+
+
+def test_invalid_stored_statistics_raise():
+    with pytest.raises(ValueError, match="positive"):
+        CurveStandardizer(mean=np.ones(3), std=np.array([1.0, 0.0, 1.0]))
+    with pytest.raises(ValueError, match="equal-length"):
+        CurveStandardizer(mean=np.ones(3), std=np.ones(2))
