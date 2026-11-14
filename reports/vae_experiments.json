@@ -382,7 +382,7 @@
       "licence": "CC BY 4.0"
     },
     "git": {
-      "revision": "8f73f52b236eddfa540d2bb2b77e296b92c6fa3b",
+      "revision": "918d53e96a5a2f586998efc17facb58dfd7eeeae",
       "tracked_changes": [],
       "untracked_source": []
     },
@@ -492,6 +492,98 @@
     "n_heldout_films": 100,
     "n_training_films": 417,
     "population_nearest_neighbour_median_nm_inverse": 0.004887516324142913
+  },
+  "robustness": {
+    "autoencoder": [
+      {
+        "heldout_reconstruction_nm_squared": 1.3295468135649658e-07,
+        "heldout_reconstruction_standardized": 0.009899909608066082,
+        "seed": 1
+      },
+      {
+        "heldout_reconstruction_nm_squared": 1.368483289404218e-07,
+        "heldout_reconstruction_standardized": 0.008143776096403599,
+        "seed": 11
+      },
+      {
+        "heldout_reconstruction_nm_squared": 1.3200418761918856e-07,
+        "heldout_reconstruction_standardized": 0.008933818899095058,
+        "seed": 21
+      }
+    ],
+    "autoencoder_seeds": [
+      1,
+      11,
+      21
+    ],
+    "kl_weight": 0.00664,
+    "summary": {
+      "autoencoder_reconstruction_standardized": {
+        "mean": 0.00899250153452158,
+        "std": 0.0007181383183720959
+      },
+      "variational_covariance_relative_frobenius": {
+        "mean": 0.31929135616997917,
+        "std": 0.0660943348754261
+      },
+      "variational_memorization_median_ratio": {
+        "mean": 1.0644931319740152,
+        "std": 0.05400141389499555
+      },
+      "variational_reconstruction_nm_squared": {
+        "mean": 1.6946508878753716e-07,
+        "std": 1.7731480524465618e-08
+      }
+    },
+    "variational": [
+      {
+        "covariance_relative_frobenius": 0.41272883435422447,
+        "heldout_reconstruction_nm_squared": 1.9405813835260547e-07,
+        "heldout_reconstruction_standardized": 0.014527239836752415,
+        "latent_kl": [
+          3.0087554454803467,
+          2.2398574352264404,
+          0.5794208645820618,
+          0.526350200176239
+        ],
+        "memorization_median_ratio": 0.9881237058292277,
+        "sampling_seed": 105,
+        "seed": 2
+      },
+      {
+        "covariance_relative_frobenius": 0.2703886054332071,
+        "heldout_reconstruction_nm_squared": 1.529265671636763e-07,
+        "heldout_reconstruction_standardized": 0.012366516515612602,
+        "latent_kl": [
+          0.9243072867393494,
+          2.040001392364502,
+          2.571544885635376,
+          0.1597483903169632
+        ],
+        "memorization_median_ratio": 1.1025677690507916,
+        "sampling_seed": 115,
+        "seed": 12
+      },
+      {
+        "covariance_relative_frobenius": 0.27475662872250595,
+        "heldout_reconstruction_nm_squared": 1.6141056084632976e-07,
+        "heldout_reconstruction_standardized": 0.013176506385207176,
+        "latent_kl": [
+          2.139244556427002,
+          0.1233299970626831,
+          2.535111665725708,
+          0.9909914135932922
+        ],
+        "memorization_median_ratio": 1.1027879210420264,
+        "sampling_seed": 125,
+        "seed": 22
+      }
+    ],
+    "variational_seeds": [
+      2,
+      12,
+      22
+    ]
   },
   "variational": [
     {
