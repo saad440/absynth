@@ -8,6 +8,8 @@ from absynth.train import (
     AutoEncoderConfig,
     VariationalAutoEncoderConfig,
     train_autoencoder,
+    train_thickness_conditioned_autoencoder,
+    train_thickness_conditioned_variational_autoencoder,
     train_variational_autoencoder,
 )
 
@@ -227,3 +229,118 @@ def test_ae_sample_is_reproducible_and_well_shaped():
     assert np.isfinite(first).all()
     assert np.array_equal(first, again)
     assert not np.array_equal(first, other)
+
+
+# --- thickness-conditioned models -----------------------------------------
+
+
+def make_thickness(n_rows=N_CURVES):
+    """Toy thicknesses spanning the real campaign's measured range."""
+    return np.linspace(150.0, 1900.0, n_rows)
+
+
+def test_conditioned_run_is_reproducible():
+    curves = make_curves()
+    thickness = make_thickness()
+    first = train_thickness_conditioned_autoencoder(curves, thickness, make_config())
+    second = train_thickness_conditioned_autoencoder(curves, thickness, make_config())
+    for weight_first, weight_second in zip(first.model.parameters(), second.model.parameters()):
+        assert torch.equal(weight_first, weight_second)
+    assert first.epoch_losses == second.epoch_losses
+
+
+def test_conditioned_standardizers_match_training_statistics():
+    curves = make_curves()
+    thickness = make_thickness()
+    result = train_thickness_conditioned_autoencoder(curves, thickness, make_config())
+    assert result.standardizer.mean == pytest.approx(curves.mean(axis=0))
+    assert result.thickness_standardizer.mean == pytest.approx(thickness.mean())
+    assert result.thickness_standardizer.std == pytest.approx(thickness.std())
+
+
+def test_conditioned_codes_are_curve_only_and_stored():
+    result = train_thickness_conditioned_autoencoder(
+        make_curves(), make_thickness(), make_config(n_latent=3)
+    )
+    assert result.codes.shape == (N_CURVES, 3)
+    assert np.isfinite(result.codes).all()
+
+
+def test_conditioned_loss_decreases_over_training():
+    result = train_thickness_conditioned_autoencoder(
+        make_curves(), make_thickness(), make_config(epochs=120, learning_rate=5e-3)
+    )
+    assert result.epoch_losses[-1] < 0.5 * result.epoch_losses[0]
+
+
+def test_conditioned_sample_returns_aligned_pairs():
+    thickness = make_thickness()
+    result = train_thickness_conditioned_autoencoder(
+        make_curves(), thickness, make_config(epochs=3)
+    )
+    drawn_curves, drawn_thickness = result.sample(25, seed=3)
+    assert drawn_curves.shape == (25, GRID)
+    assert drawn_thickness.shape == (25,)
+    assert np.isfinite(drawn_curves).all()
+    # Every drawn thickness is a measured training thickness.
+    assert set(drawn_thickness.tolist()) <= set(thickness.tolist())
+
+
+def test_conditioned_sample_is_reproducible():
+    result = train_thickness_conditioned_autoencoder(
+        make_curves(), make_thickness(), make_config(epochs=3)
+    )
+    first = result.sample(10, seed=5)
+    again = result.sample(10, seed=5)
+    other = result.sample(10, seed=6)
+    assert np.array_equal(first[0], again[0])
+    assert np.array_equal(first[1], again[1])
+    assert not np.array_equal(first[0], other[0])
+
+
+def test_conditioned_thickness_mismatch_raises():
+    with pytest.raises(ValueError, match="one entry per curve row"):
+        train_thickness_conditioned_autoencoder(
+            make_curves(), make_thickness(N_CURVES + 1), make_config()
+        )
+
+
+def test_conditioned_nonpositive_thickness_raises():
+    thickness = make_thickness()
+    thickness[1] = 0.0
+    with pytest.raises(ValueError, match="positive"):
+        train_thickness_conditioned_autoencoder(make_curves(), thickness, make_config())
+
+
+def test_conditioned_vae_run_is_reproducible():
+    curves = make_curves()
+    thickness = make_thickness()
+    first = train_thickness_conditioned_variational_autoencoder(curves, thickness, make_vae_config())
+    second = train_thickness_conditioned_variational_autoencoder(curves, thickness, make_vae_config())
+    for weight_first, weight_second in zip(first.model.parameters(), second.model.parameters()):
+        assert torch.equal(weight_first, weight_second)
+    assert first.epoch_reconstruction == second.epoch_reconstruction
+    assert first.epoch_kl == second.epoch_kl
+
+
+def test_conditioned_vae_diagnostic_semantics_carry_over():
+    result = train_thickness_conditioned_variational_autoencoder(
+        make_curves(), make_thickness(), make_vae_config(n_latent=3, kl_weight=0.5)
+    )
+    assert len(result.latent_kl) == 3
+    assert all(value >= 0.0 for value in result.latent_kl)
+    assert result.implied_noise_variance == pytest.approx(0.5 * GRID / 2.0)
+
+
+def test_conditioned_vae_sample_returns_aligned_pairs():
+    thickness = make_thickness()
+    result = train_thickness_conditioned_variational_autoencoder(
+        make_curves(), thickness, make_vae_config(epochs=3)
+    )
+    first = result.sample(10, seed=3)
+    again = result.sample(10, seed=3)
+    assert first[0].shape == (10, GRID)
+    assert first[1].shape == (10,)
+    assert np.isfinite(first[0]).all()
+    assert np.array_equal(first[0], again[0])
+    assert np.array_equal(first[1], again[1])
