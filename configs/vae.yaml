@@ -1,0 +1,54 @@
+# Trained-model experiments: the autoencoder, its KL-free code-sampling
+# generator, and the variational autoencoder at three KL weights, all on
+# the date-block holdout. Same frozen split as configs/pilot.yaml; every
+# seed, width and KL weight lives here, so the written record
+# (reports/vae_experiments.json) and the figures are reproducible from
+# this file alone.
+
+data:
+  archive_dir: data/raw/Dataset
+
+split:  # identical to the pilot's frozen split
+  test_fraction: 0.2
+  seed: 0
+  rare_stack_max_films: 20
+
+autoencoder:
+  n_hidden: 64
+  # The PCA baseline keeps four components; the same latent width keeps
+  # the comparison at equal descriptive width.
+  n_latent: 4
+  epochs: 300
+  learning_rate: 0.001
+  batch_size: 32
+  seed: 1
+
+variational:
+  n_hidden: 64
+  n_latent: 4
+  epochs: 300
+  learning_rate: 0.001
+  batch_size: 32
+  seed: 2
+  # The KL weight implies an observation variance of
+  # kl_weight * n_wavelengths / 2 in standardized units (see
+  # absynth.train). The middle value sets that variance to 1, the
+  # standardized data's own spread; the outer values are that anchor
+  # divided and multiplied by 10, so the scan brackets it on a
+  # factor-of-10 grid. The report also estimates the lower anchor
+  # from the autoencoder's held-out reconstruction residual.
+  kl_weights: [0.000664, 0.00664, 0.0664]
+
+pca:  # identical to the pilot, so both records share PCA numbers
+  n_components: 4
+
+sampling:
+  # Each generator draws as many synthetic curves as there are training
+  # films, so population-level metrics compare like-sized populations.
+  # With the pinned split seed this is 417; changing the split changes
+  # the count, and this file must say so.
+  n_samples: 417
+  # Base seed; each generator draws with seed + its position in the
+  # record's generator list, stated in the record itself.
+  seed: 3
+  floor_seed: 2
