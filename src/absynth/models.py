@@ -37,6 +37,15 @@ the decoder. The prior-matching demand enters the objective as a KL
 term whose weight sets the implied observation noise. train.py
 records that implied value alongside every fit.
 
+The thickness-conditioned classes add a physical input to the same
+architectures. Their encoders are the curve-only encoders above;
+their decoders receive the film thickness, standardized, as one
+additional input next to the code, so the mapping from codes to
+curves is specific to the thickness supplied. Curves stay in the
+archive's normalized form ``q = A/t`` throughout; the thickness
+arrives separately, and the trained wrappers in train.py draw it from
+the measured distribution when generating films.
+
 Curves enter in the units used throughout this package, optical
 density ``OD = A/t`` in nm⁻¹, complete on the working span (300–900 nm
 at 2 nm). Inputs may be numpy arrays or torch tensors and are
@@ -75,16 +84,18 @@ def _checked_matrix(
     return tensor
 
 
-def _decoder_stack(n_latent: int, n_hidden: int, n_wavelengths: int) -> nn.Sequential:
-    """The decoder architecture shared by both model classes.
+def _decoder_stack(n_inputs: int, n_hidden: int, n_wavelengths: int) -> nn.Sequential:
+    """The decoder architecture shared by every model class.
 
-    :class:`AutoEncoder` and :class:`VariationalAutoEncoder` build
-    their decoders from this one definition, so their decoders stay
-    identical by construction: latent width → hidden → grid, linear
-    maps with a GELU activation between, and no output activation.
+    :class:`AutoEncoder`, :class:`VariationalAutoEncoder` and the
+    thickness-conditioned classes below build their decoders from this
+    one definition, so their decoders stay identical by construction:
+    input width → hidden → grid, linear maps with a GELU activation
+    between, and no output activation. The input is the code, or the
+    code with the standardized thickness appended next to it.
     """
     return nn.Sequential(
-        nn.Linear(n_latent, n_hidden),
+        nn.Linear(n_inputs, n_hidden),
         nn.GELU(),
         nn.Linear(n_hidden, n_wavelengths),
     )
@@ -334,6 +345,110 @@ class CurveStandardizer:
         return matrix * self.std + self.mean
 
 
+@dataclass(frozen=True)
+class ThicknessStandardizer:
+    """Shift and rescaling of thickness values, fitted on one population.
+
+    The thickness-conditioned decoders below consume the film
+    thickness as an input next to the code. Gradient descent has no
+    sense of units, and measured thicknesses span hundreds to
+    thousands of nanometres, so the thickness enters in standardized
+    units: training measures the mean and standard deviation of the
+    training thicknesses, and this map moves thicknesses between
+    nanometres and those units exactly as :class:`CurveStandardizer`
+    moves curves.
+
+    The fitting population is the training films. Fitting on any film
+    that later serves as an evaluation target would leak information
+    about the evaluation population into the model, the same argument
+    :class:`CurveStandardizer` makes for curves.
+
+    Attributes:
+        mean: Mean training thickness, nm.
+        std: Training thickness standard deviation (``ddof=0``), nm.
+    """
+
+    mean: float
+    std: float
+
+    def __post_init__(self) -> None:
+        if not np.isfinite([self.mean, self.std]).all():
+            raise ValueError("mean and std must be finite")
+        if self.std <= 0:
+            raise ValueError("std must be positive to scale thickness")
+
+    @classmethod
+    def fit(cls, thickness_nm: np.ndarray) -> ThicknessStandardizer:
+        """Measure mean and spread of a population of thicknesses.
+
+        Args:
+            thickness_nm: Film thickness in nm, 1-D. A Series is
+                consumed by position (its index is ignored).
+
+        Returns:
+            A fitted standardizer.
+
+        Raises:
+            ValueError: If the values are empty, non-finite,
+                non-positive, or all identical, which leaves no spread
+                to scale by.
+        """
+        thickness_nm = np.asarray(thickness_nm, dtype=float)
+        if thickness_nm.ndim != 1 or thickness_nm.size == 0:
+            raise ValueError("thickness must be a non-empty 1-D array")
+        if not np.isfinite(thickness_nm).all():
+            raise ValueError("thickness must be finite")
+        if (thickness_nm <= 0).any():
+            raise ValueError("thickness must be positive")
+        std = float(thickness_nm.std())
+        if std == 0.0:
+            raise ValueError("thickness has zero variance; there is no spread to scale by")
+        return cls(mean=float(thickness_nm.mean()), std=std)
+
+    def transform(self, thickness_nm: np.ndarray) -> np.ndarray:
+        """Map thicknesses to standardized values, ``(t - mean) / std``.
+
+        Args:
+            thickness_nm: Film thickness in nm, 1-D. A Series is
+                consumed by position (its index is ignored).
+
+        Returns:
+            Standardized thicknesses, dimensionless, same shape.
+
+        Raises:
+            ValueError: If the values are empty, not 1-D, or
+                non-finite.
+        """
+        thickness_nm = np.asarray(thickness_nm, dtype=float)
+        if thickness_nm.ndim != 1 or thickness_nm.size == 0:
+            raise ValueError("thickness must be a non-empty 1-D array")
+        if not np.isfinite(thickness_nm).all():
+            raise ValueError("thickness must be finite")
+        return (thickness_nm - self.mean) / self.std
+
+    def inverse_transform(self, standardized: np.ndarray) -> np.ndarray:
+        """Map standardized thicknesses back to nm, ``standardized · std + mean``.
+
+        Inverse of :meth:`transform` up to floating-point rounding.
+
+        Args:
+            standardized: Standardized thicknesses, dimensionless, 1-D.
+
+        Returns:
+            Thicknesses in nm, same shape.
+
+        Raises:
+            ValueError: If the values are empty, not 1-D, or
+                non-finite.
+        """
+        standardized = np.asarray(standardized, dtype=float)
+        if standardized.ndim != 1 or standardized.size == 0:
+            raise ValueError("standardized thickness must be a non-empty 1-D array")
+        if not np.isfinite(standardized).all():
+            raise ValueError("standardized thickness must be finite")
+        return standardized * self.std + self.mean
+
+
 def latent_kl_per_dimension(mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
     """Per-dimension KL divergence of latent Gaussians against the prior.
 
@@ -522,3 +637,159 @@ class VariationalAutoEncoder(nn.Module):
         """
         mean, std = self.encode(curves)
         return self.decode(self.sample_latent(mean, std)), mean, std
+
+
+class ThicknessConditionedAutoEncoder(AutoEncoder):
+    """An autoencoder whose decoder also receives the film thickness.
+
+    The encoder is the curve-only encoder of :class:`AutoEncoder`: it
+    maps a curve to a code and never sees the thickness. The decoder
+    maps the code back to a curve as before, with one difference: a
+    thickness value enters the first decoder layer as one additional
+    input next to the code, in standardized units (see
+    :class:`ThicknessStandardizer`). The mapping from codes to curves
+    is therefore specific to the thickness supplied: the same code
+    decodes differently at 150 nm and at 1900 nm. Training pairs each
+    code with its film's measured thickness, so the decoder learns
+    this two-argument map from correctly paired examples; no part of
+    the model infers the thickness.
+
+    Construction and sizes follow :class:`AutoEncoder`; only the
+    decoder's input layer is wider by one.
+
+    Raises:
+        ValueError: If a width fails the :class:`AutoEncoder` checks,
+            including a latent width that is not smaller than the
+            grid.
+    """
+
+    def __init__(self, n_wavelengths: int, n_hidden: int, n_latent: int) -> None:
+        """Build the curve-only encoder and the conditioned decoder.
+
+        The parent constructor builds the curve-only decoder; the
+        assignment below replaces it with the same stack fed one
+        wider input, the code with the standardized thickness
+        appended. The width checks run once, in the parent.
+        """
+        super().__init__(n_wavelengths=n_wavelengths, n_hidden=n_hidden, n_latent=n_latent)
+        self.decoder = _decoder_stack(n_latent + 1, n_hidden, n_wavelengths)
+
+    def decode(
+        self, codes: np.ndarray | torch.Tensor, thickness: np.ndarray | torch.Tensor
+    ) -> torch.Tensor:
+        """Map codes and thicknesses to curves.
+
+        Args:
+            codes: Code matrix, shape ``(n_curves, n_latent)``; numpy
+                array or tensor.
+            thickness: Standardized thickness for each row of
+                ``codes``, shape ``(n_curves,)``; numpy array or
+                tensor. Raw nanometre values reach this method only
+                through :class:`ThicknessStandardizer`.
+
+        Returns:
+            Curve matrix, in the units of the encoder's inputs.
+
+        Raises:
+            ValueError: If the codes fail the width and finiteness
+                checks, or the thickness is not 1-D with one entry per
+                code row, or the thickness is non-finite.
+        """
+        codes_tensor = _checked_matrix(codes, self.n_latent, "codes")
+        thickness_tensor = torch.as_tensor(thickness, dtype=torch.float32)
+        if thickness_tensor.ndim != 1 or thickness_tensor.shape[0] != codes_tensor.shape[0]:
+            raise ValueError(
+                f"thickness must be 1-D with one entry per code row "
+                f"({codes_tensor.shape[0]}), got shape {tuple(thickness_tensor.shape)}"
+            )
+        if not torch.isfinite(thickness_tensor).all():
+            raise ValueError("thickness must be finite")
+        conditioned = torch.cat((codes_tensor, thickness_tensor.unsqueeze(1)), dim=1)
+        return self.decoder(conditioned)
+
+    def forward(
+        self, curves: np.ndarray | torch.Tensor, thickness: np.ndarray | torch.Tensor
+    ) -> torch.Tensor:
+        """Rebuild curves by encoding, then decoding with their thicknesses.
+
+        Computes ``decode(encode(curves), thickness)``. Training
+        minimizes the distance between the rebuilt curves and their
+        inputs; on held-out films the same quantity, computed at each
+        film's measured thickness, is the conditional reconstruction
+        diagnostic.
+        """
+        return self.decode(self.encode(curves), thickness)
+
+
+class ThicknessConditionedVariationalAutoEncoder(VariationalAutoEncoder):
+    """The variational autoencoder whose decoder also receives the thickness.
+
+    The encoder, the code Gaussians and the KL term against the
+    standard-normal prior are the curve-only machinery of
+    :class:`VariationalAutoEncoder`. The decoder receives the code
+    with the standardized thickness appended, as in
+    :class:`ThicknessConditionedAutoEncoder`, so prior draws decode to
+    curves of the thickness paired with them at sampling time. The
+    trained wrappers draw that thickness from the measured
+    distribution.
+
+    Raises:
+        ValueError: If a width fails the :class:`AutoEncoder` checks,
+            including a latent width that is not smaller than the
+            grid.
+    """
+
+    def __init__(self, n_wavelengths: int, n_hidden: int, n_latent: int) -> None:
+        """Build the curve-only encoder and the conditioned decoder.
+
+        The parent constructor builds the curve-only decoder; the
+        assignment below replaces it with the same stack fed one
+        wider input, the code with the standardized thickness
+        appended. The width checks run once, in the parent.
+        """
+        super().__init__(n_wavelengths=n_wavelengths, n_hidden=n_hidden, n_latent=n_latent)
+        self.decoder = _decoder_stack(n_latent + 1, n_hidden, n_wavelengths)
+
+    def decode(
+        self, codes: np.ndarray | torch.Tensor, thickness: np.ndarray | torch.Tensor
+    ) -> torch.Tensor:
+        """Map codes and thicknesses to curves.
+
+        Args:
+            codes: Code matrix, shape ``(n_curves, n_latent)``;
+                typically a :meth:`sample_latent` draw.
+            thickness: Standardized thickness for each row of
+                ``codes``, shape ``(n_curves,)``; numpy array or
+                tensor.
+
+        Returns:
+            Curve matrix, in the units of the encoder's inputs.
+
+        Raises:
+            ValueError: If the codes fail the width and finiteness
+                checks, or the thickness is not 1-D with one entry per
+                code row, or the thickness is non-finite.
+        """
+        codes_tensor = _checked_matrix(codes, self.n_latent, "codes")
+        thickness_tensor = torch.as_tensor(thickness, dtype=torch.float32)
+        if thickness_tensor.ndim != 1 or thickness_tensor.shape[0] != codes_tensor.shape[0]:
+            raise ValueError(
+                f"thickness must be 1-D with one entry per code row "
+                f"({codes_tensor.shape[0]}), got shape {tuple(thickness_tensor.shape)}"
+            )
+        if not torch.isfinite(thickness_tensor).all():
+            raise ValueError("thickness must be finite")
+        conditioned = torch.cat((codes_tensor, thickness_tensor.unsqueeze(1)), dim=1)
+        return self.decoder(conditioned)
+
+    def forward(
+        self, curves: np.ndarray | torch.Tensor, thickness: np.ndarray | torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Sample codes, rebuild curves at their thicknesses, report parameters.
+
+        Returns ``(rebuilt, mean, std)``: the decoded draw, decoded at
+        the thickness supplied alongside the codes, together with the
+        Gaussian parameters it came from.
+        """
+        mean, std = self.encode(curves)
+        return self.decode(self.sample_latent(mean, std), thickness), mean, std

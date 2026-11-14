@@ -8,6 +8,9 @@ from torch.nn.functional import mse_loss
 from absynth.models import (
     AutoEncoder,
     CurveStandardizer,
+    ThicknessConditionedAutoEncoder,
+    ThicknessConditionedVariationalAutoEncoder,
+    ThicknessStandardizer,
     VariationalAutoEncoder,
     latent_kl_per_dimension,
 )
@@ -301,3 +304,128 @@ def test_latent_kl_rejects_invalid_inputs():
         latent_kl_per_dimension(torch.zeros(2, 3), torch.zeros(2, 3))
     with pytest.raises(ValueError, match="2-D"):
         latent_kl_per_dimension(torch.zeros(3), torch.zeros(3))
+
+
+# --- thickness conditioning ----------------------------------------------
+
+
+def make_conditioned_model(n_latent=3, n_hidden=8, seed=0):
+    """A thickness-conditioned autoencoder on the toy grid, freshly seeded."""
+    torch.manual_seed(seed)
+    return ThicknessConditionedAutoEncoder(n_wavelengths=GRID, n_hidden=n_hidden, n_latent=n_latent)
+
+
+def make_conditioned_vae(n_latent=3, n_hidden=8, seed=1):
+    """A thickness-conditioned variational autoencoder, freshly seeded."""
+    torch.manual_seed(seed)
+    return ThicknessConditionedVariationalAutoEncoder(
+        n_wavelengths=GRID, n_hidden=n_hidden, n_latent=n_latent
+    )
+
+
+def make_thickness(n_rows=6):
+    """Toy thicknesses spanning the real campaign's measured range."""
+    return np.linspace(150.0, 1900.0, n_rows)
+
+
+def test_conditioned_forward_preserves_curve_shape():
+    model = make_conditioned_model()
+    thickness = torch.from_numpy(make_thickness().astype(np.float32))
+    rebuilt = model(as_float32(make_curves()), thickness)
+    assert rebuilt.shape == (6, GRID)
+
+
+def test_conditioned_decode_is_decode_after_encode():
+    curves = as_float32(make_curves())
+    thickness = torch.from_numpy(make_thickness().astype(np.float32))
+    model = make_conditioned_model()
+    direct = model(curves, thickness)
+    round_trip = model.decode(model.encode(curves), thickness)
+    assert torch.allclose(direct, round_trip)
+
+
+def test_thickness_changes_the_decoding():
+    # The conditioning is wired: one code decoded at two thicknesses
+    # gives two different curves.
+    model = make_conditioned_model()
+    codes = model.encode(as_float32(make_curves(n_rows=1)))
+    assert not torch.allclose(model.decode(codes, torch.tensor([0.0])), model.decode(codes, torch.tensor([3.0])))
+
+
+def test_conditioned_parameter_count_has_the_extra_input():
+    # Same as the plain autoencoder (136 + 27 + 32 + 144) except the
+    # decoder's first layer: (3+1)·8+8 = 40 instead of 3·8+8 = 32.
+    assert make_conditioned_model().parameter_count == 136 + 27 + 40 + 144
+
+
+def test_conditioned_thickness_length_mismatch_raises():
+    model = make_conditioned_model()
+    codes = model.encode(as_float32(make_curves(n_rows=3)))
+    with pytest.raises(ValueError, match="one entry per code row"):
+        model.decode(codes, torch.zeros(2))
+
+
+def test_conditioned_nonfinite_thickness_raises():
+    model = make_conditioned_model()
+    codes = model.encode(as_float32(make_curves(n_rows=2)))
+    with pytest.raises(ValueError, match="finite"):
+        model.decode(codes, torch.tensor([1.0, np.nan]))
+
+
+def test_conditioned_vae_encode_returns_gaussians_and_forward_triples():
+    model = make_conditioned_vae()
+    thickness = torch.from_numpy(make_thickness().astype(np.float32))
+    mean, std = model.encode(as_float32(make_curves()))
+    assert mean.shape == (6, 3)
+    assert std.shape == (6, 3)
+    rebuilt, mean_again, std_again = model(as_float32(make_curves()), thickness)
+    assert rebuilt.shape == (6, GRID)
+    assert torch.equal(mean, mean_again)
+    assert torch.equal(std, std_again)
+
+
+def test_conditioned_vae_thickness_length_mismatch_raises():
+    model = make_conditioned_vae()
+    codes = torch.zeros(3, 3)
+    with pytest.raises(ValueError, match="one entry per code row"):
+        model.decode(codes, torch.zeros(2))
+
+
+# --- thickness standardizer -----------------------------------------------
+
+
+def test_thickness_standardizer_round_trip():
+    thickness = make_thickness(50)
+    standardizer = ThicknessStandardizer.fit(thickness)
+    restored = standardizer.inverse_transform(standardizer.transform(thickness))
+    assert restored == pytest.approx(thickness)
+
+
+def test_thickness_standardizer_matches_hand_values():
+    thickness = np.array([100.0, 300.0, 500.0])
+    standardizer = ThicknessStandardizer.fit(thickness)
+    assert standardizer.mean == pytest.approx(300.0)
+    assert standardizer.std == pytest.approx(np.std(thickness))
+    standardized = standardizer.transform(thickness)
+    assert standardized.mean() == pytest.approx(0.0, abs=1e-12)
+
+
+def test_constant_thickness_has_no_spread_to_scale_by():
+    with pytest.raises(ValueError, match="zero variance"):
+        ThicknessStandardizer.fit(np.full(4, 300.0))
+
+
+def test_nonpositive_thickness_raises_for_standardizer():
+    with pytest.raises(ValueError, match="positive"):
+        ThicknessStandardizer.fit(np.array([100.0, 0.0, 500.0]))
+
+
+def test_nonfinite_thickness_raises_for_standardizer():
+    with pytest.raises(ValueError, match="finite"):
+        ThicknessStandardizer.fit(np.array([100.0, np.nan, 500.0]))
+
+
+def test_standardizer_rejects_2d_thickness():
+    standardizer = ThicknessStandardizer.fit(make_thickness(4))
+    with pytest.raises(ValueError, match="1-D"):
+        standardizer.transform(np.zeros((4, 1)))
