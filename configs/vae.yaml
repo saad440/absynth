@@ -52,3 +52,12 @@ sampling:
   # record's generator list, stated in the record itself.
   seed: 3
   floor_seed: 2
+
+robustness:
+  # Multi-seed repeats of the anchor configuration (the same widths,
+  # KL weight and optimization recipe) retrained from different seeds.
+  # The first seed of each list is the headline run above, which the
+  # runner reuses instead of retraining. Robustness draws sample with
+  # base seed + 100 + seed.
+  autoencoder_seeds: [1, 11, 21]
+  variational_seeds: [2, 12, 22]

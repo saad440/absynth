@@ -24,7 +24,9 @@ generated curves to the nearest training curve, read against the same
 profile for held-out films. Each trained model also reports its
 reconstruction of the held-out films, in standardized units for the
 trained models and in nm⁻² for all models, because the reconstruction
-question comes before the sampling question.
+question comes before the sampling question. A robustness sweep
+retrains the anchor configuration across several seeds and records
+the spread of its key metrics.
 """
 
 from __future__ import annotations
@@ -51,11 +53,13 @@ from absynth.evaluation import (
 )
 from absynth.explore import nearest_neighbour_distances
 from absynth.loader import load_dataset
+from absynth.models import AutoEncoder, CurveStandardizer, VariationalAutoEncoder
 from absynth.preprocessing import require_complete, restrict_to_span
 from absynth.provenance import git_provenance, package_versions
 from absynth.splits import date_block_holdout
 from absynth.train import (
     AutoEncoderConfig,
+    TrainedVariationalAutoEncoder,
     VariationalAutoEncoderConfig,
     train_autoencoder,
     train_variational_autoencoder,
@@ -86,6 +90,43 @@ def _pca_reconstruction(curves: np.ndarray, mean: np.ndarray, components: np.nda
     """Rebuild curves from their PCA coordinates: the linear reconstruction."""
     scores = component_scores(curves, mean, components)
     return scores @ components + mean
+
+
+def _model_reconstruction(
+    model: AutoEncoder,
+    standardizer: CurveStandardizer,
+    standardized_held_out: torch.Tensor,
+    held_out: np.ndarray,
+) -> tuple[torch.Tensor, float, float]:
+    """Deterministic reconstruction of held-out curves by a trained model.
+
+    Returns the rebuilt standardized curves, the mean squared error in
+    standardized units, and the same error in nm⁻².
+    """
+    with torch.no_grad():
+        rebuilt = model(standardized_held_out)
+    standardized_mse = float(mse_loss(rebuilt, standardized_held_out))
+    nm_squared = _reconstruction_mse(standardizer.inverse_transform(rebuilt.numpy()), held_out)
+    return rebuilt, standardized_mse, nm_squared
+
+
+def _variational_reconstruction(
+    model: VariationalAutoEncoder,
+    standardizer: CurveStandardizer,
+    standardized_held_out: torch.Tensor,
+    held_out: np.ndarray,
+) -> tuple[torch.Tensor, float, float]:
+    """Posterior-mean reconstruction of held-out curves, without sampling.
+
+    Returns the rebuilt standardized curves, the mean squared error in
+    standardized units, and the same error in nm⁻².
+    """
+    with torch.no_grad():
+        mean, _std = model.encode(standardized_held_out)
+        rebuilt = model.decode(mean)
+    standardized_mse = float(mse_loss(rebuilt, standardized_held_out))
+    nm_squared = _reconstruction_mse(standardizer.inverse_transform(rebuilt.numpy()), held_out)
+    return rebuilt, standardized_mse, nm_squared
 
 
 def _mean_curves_figure(
@@ -216,7 +257,7 @@ def main() -> None:
     print("training the autoencoder ...", flush=True)
     autoencoder = train_autoencoder(train, AutoEncoderConfig(**config["autoencoder"]))
 
-    variational: list[tuple[int, float, object]] = []
+    variational: list[tuple[int, float, TrainedVariationalAutoEncoder]] = []
     variational_values = {
         key: value for key, value in config["variational"].items() if key != "kl_weights"
     }
@@ -260,15 +301,106 @@ def main() -> None:
     standardized_held_out = torch.from_numpy(
         autoencoder.standardizer.transform(held_out).astype(np.float32)
     )
-    with torch.no_grad():
-        autoencoder_rebuilt = autoencoder.model(standardized_held_out)
-        variational_rebuilt = {
-            position: trained.model.decode(trained.model.encode(standardized_held_out)[0])
-            for position, _, trained in variational
-        }
+    _, autoencoder_reconstruction_std, autoencoder_reconstruction_nm2 = _model_reconstruction(
+        autoencoder.model, autoencoder.standardizer, standardized_held_out, held_out
+    )
+    variational_reconstruction = {
+        position: _variational_reconstruction(
+            trained.model, trained.standardizer, standardized_held_out, held_out
+        )
+        for position, _, trained in variational
+    }
 
     anchor_position = len(variational) // 2
     anchor_weight = variational[anchor_position][1]
+    anchor_trained = variational[anchor_position][2]
+
+    robustness_config = config.get("robustness", {})
+    robustness_ae_seeds = [int(seed) for seed in robustness_config.get("autoencoder_seeds", [])]
+    robustness_vae_seeds = [int(seed) for seed in robustness_config.get("variational_seeds", [])]
+
+    robustness_ae_entries = []
+    for seed in robustness_ae_seeds:
+        if seed == int(config["autoencoder"]["seed"]):
+            trained = autoencoder
+            reconstruction = autoencoder_reconstruction_std
+            reconstruction_nm2 = autoencoder_reconstruction_nm2
+        else:
+            print(f"robustness: training the autoencoder at seed = {seed} ...", flush=True)
+            trained = train_autoencoder(
+                train, AutoEncoderConfig(**{**config["autoencoder"], "seed": seed})
+            )
+            _, reconstruction, reconstruction_nm2 = _model_reconstruction(
+                trained.model, trained.standardizer, standardized_held_out, held_out
+            )
+        robustness_ae_entries.append(
+            {
+                "seed": seed,
+                "heldout_reconstruction_standardized": reconstruction,
+                "heldout_reconstruction_nm_squared": reconstruction_nm2,
+            }
+        )
+
+    robustness_vae_entries = []
+    for seed in robustness_vae_seeds:
+        if seed == int(config["variational"]["seed"]):
+            trained = anchor_trained
+            reconstruction = variational_reconstruction[anchor_position][1]
+            reconstruction_nm2 = variational_reconstruction[anchor_position][2]
+        else:
+            print(f"robustness: training the variational model at seed = {seed} ...", flush=True)
+            trained = train_variational_autoencoder(
+                train,
+                VariationalAutoEncoderConfig(
+                    **{**variational_values, "kl_weight": anchor_weight, "seed": seed}
+                ),
+            )
+            _, reconstruction, reconstruction_nm2 = _variational_reconstruction(
+                trained.model, trained.standardizer, standardized_held_out, held_out
+            )
+        latent_kl = [float(value) for value in trained.latent_kl]
+        sample_seed = base_seed + 100 + seed
+        drawn = trained.sample(n_samples, sample_seed)
+        memorization = memorization_record(
+            nearest_training_distances(drawn, train), heldout_distances
+        )
+        covariance = covariance_record(held_out, drawn)
+        robustness_vae_entries.append(
+            {
+                "seed": seed,
+                "sampling_seed": sample_seed,
+                "heldout_reconstruction_standardized": reconstruction,
+                "heldout_reconstruction_nm_squared": reconstruction_nm2,
+                "memorization_median_ratio": memorization["median_ratio"],
+                "covariance_relative_frobenius": covariance["covariance_relative_frobenius"],
+                "latent_kl": latent_kl,
+            }
+        )
+
+    def _spread(values: list[float]) -> dict[str, float]:
+        return {"mean": float(np.mean(values)), "std": float(np.std(values))}
+
+    robustness = {
+        "kl_weight": anchor_weight,
+        "autoencoder_seeds": robustness_ae_seeds,
+        "variational_seeds": robustness_vae_seeds,
+        "autoencoder": robustness_ae_entries,
+        "variational": robustness_vae_entries,
+        "summary": {
+            "autoencoder_reconstruction_standardized": _spread(
+                [entry["heldout_reconstruction_standardized"] for entry in robustness_ae_entries]
+            ),
+            "variational_reconstruction_nm_squared": _spread(
+                [entry["heldout_reconstruction_nm_squared"] for entry in robustness_vae_entries]
+            ),
+            "variational_memorization_median_ratio": _spread(
+                [entry["memorization_median_ratio"] for entry in robustness_vae_entries]
+            ),
+            "variational_covariance_relative_frobenius": _spread(
+                [entry["covariance_relative_frobenius"] for entry in robustness_vae_entries]
+            ),
+        },
+    }
 
     record = {
         "provenance": {
@@ -292,21 +424,14 @@ def main() -> None:
         "calibration": {
             "kl_weight_anchor": anchor_weight,
             "anchor_implied_noise_variance": variational[anchor_position][2].implied_noise_variance,
-            "autoencoder_heldout_reconstruction_standardized": float(
-                mse_loss(autoencoder_rebuilt, standardized_held_out)
-            ),
+            "autoencoder_heldout_reconstruction_standardized": autoencoder_reconstruction_std,
         },
         "autoencoder": {
             "config": config["autoencoder"],
             "parameter_count": autoencoder.model.parameter_count,
             "epoch_losses": [float(value) for value in autoencoder.epoch_losses],
-            "heldout_reconstruction_nm_squared": _reconstruction_mse(
-                autoencoder.standardizer.inverse_transform(autoencoder_rebuilt.numpy()),
-                held_out,
-            ),
-            "heldout_reconstruction_standardized": float(
-                mse_loss(autoencoder_rebuilt, standardized_held_out)
-            ),
+            "heldout_reconstruction_nm_squared": autoencoder_reconstruction_nm2,
+            "heldout_reconstruction_standardized": autoencoder_reconstruction_std,
             **_distribution_metrics(
                 synthetic["autoencoder_codes"],
                 train,
@@ -323,13 +448,8 @@ def main() -> None:
                 "epoch_reconstruction": [float(value) for value in trained.epoch_reconstruction],
                 "epoch_kl": [float(value) for value in trained.epoch_kl],
                 "latent_kl": [float(value) for value in trained.latent_kl],
-                "heldout_reconstruction_nm_squared": _reconstruction_mse(
-                    trained.standardizer.inverse_transform(variational_rebuilt[position].numpy()),
-                    held_out,
-                ),
-                "heldout_reconstruction_standardized": float(
-                    mse_loss(variational_rebuilt[position], standardized_held_out)
-                ),
+                "heldout_reconstruction_nm_squared": variational_reconstruction[position][2],
+                "heldout_reconstruction_standardized": variational_reconstruction[position][1],
                 **_distribution_metrics(
                     synthetic[f"variational_kl_{weight:.5g}"],
                     train,
@@ -353,6 +473,7 @@ def main() -> None:
             ),
             "mean_curve_deviation_vs_heldout": mean_curve_deviation(held_out, floor),
         },
+        "robustness": robustness,
     }
 
     args.report_dir.mkdir(parents=True, exist_ok=True)
