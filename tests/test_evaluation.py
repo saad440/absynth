@@ -6,12 +6,14 @@ import pytest
 from absynth.baselines import fit_pca_generator
 from absynth.evaluation import (
     component_scores,
+    coupling_record,
     covariance_record,
     mean_curve,
     mean_curve_deviation,
     memorization_record,
     nearest_training_distances,
     quantile_band,
+    thickness_slice_errors,
 )
 
 
@@ -154,3 +156,94 @@ def test_component_scores_shape_mismatch_raises():
         component_scores(curves, mean=np.zeros(3), components=np.zeros((1, 4)))
     with pytest.raises(ValueError, match="components have shape"):
         component_scores(curves, mean=np.zeros(4), components=np.zeros((1, 3)))
+
+
+# --- coupling and slice decomposition --------------------------------------
+
+
+def test_coupling_is_exact_for_a_perfect_line():
+    # Pearson correlation is linear: an exact linear relation scores
+    # exactly -1, while the curved definitional relation q ∝ 1/t
+    # scores strongly negative but short of it.
+    thickness = np.array([100.0, 200.0, 300.0, 400.0])
+    linear = 800.0 - 2.0 * thickness
+    assert coupling_record(linear, thickness)["pearson_r"] == pytest.approx(-1.0)
+    hyperbolic = 50_000.0 / thickness
+    hyperbolic_r = coupling_record(hyperbolic, thickness)["pearson_r"]
+    assert -1.0 < hyperbolic_r < -0.9
+
+
+def test_independent_pairing_collapses_the_coupling():
+    # Erasing the pairing (permutation) while keeping both marginals
+    # drives the correlation to 0: the independent-marginal failure,
+    # in numbers. The measured value stays strongly negative even
+    # though 1/t is curved and Pearson is linear, which attenuates it.
+    # 20,000 draws make the permuted spread about 0.007, so the 0.05
+    # bound is several sigma wide.
+    rng = np.random.default_rng(3)
+    thickness = np.linspace(100.0, 1900.0, 20_000)
+    summaries = 0.5 / thickness
+    measured = coupling_record(summaries, thickness)["pearson_r"]
+    erased = coupling_record(rng.permutation(summaries), thickness)["pearson_r"]
+    assert measured < -0.7
+    assert abs(erased) < 0.05
+
+
+def test_coupling_rejects_invalid_input():
+    with pytest.raises(ValueError, match="one thickness per film summary"):
+        coupling_record(np.zeros(3), np.zeros(2))
+    with pytest.raises(ValueError, match="finite"):
+        coupling_record(np.array([1.0, np.nan]), np.array([100.0, 200.0]))
+    with pytest.raises(ValueError, match="constant"):
+        coupling_record(np.array([0.5, 0.5, 0.5]), np.array([100.0, 200.0, 300.0]))
+
+
+def test_slice_errors_are_exact_slice_means():
+    errors = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    thickness = np.array([110.0, 130.0, 150.0, 170.0, 190.0, 210.0])
+    records = thickness_slice_errors(errors, thickness, [100.0, 160.0, 220.0])
+    assert [record["slice"] for record in records] == [0, 1]
+    assert records[0]["edges_nm"] == [100.0, 160.0]
+    assert records[0]["n_films"] == 3
+    assert records[0]["mean_error"] == pytest.approx(2.0)
+    assert records[1]["edges_nm"] == [160.0, 220.0]
+    assert records[1]["n_films"] == 3
+    assert records[1]["mean_error"] == pytest.approx(5.0)
+
+
+def test_slice_edge_film_joins_the_upper_slice():
+    # Slices are half-open, lower edge included: the film sitting on
+    # the boundary belongs above it.
+    errors = np.array([1.0, 2.0])
+    thickness = np.array([149.0, 150.0])
+    records = thickness_slice_errors(errors, thickness, [100.0, 150.0, 200.0])
+    assert records[0]["n_films"] == 1
+    assert records[1]["n_films"] == 1
+    assert records[1]["mean_error"] == pytest.approx(2.0)
+
+
+def test_slice_errors_reject_films_outside_the_edges():
+    with pytest.raises(ValueError, match="outside the slice edges"):
+        thickness_slice_errors(np.array([1.0, 2.0]), np.array([90.0, 150.0]), [100.0, 200.0])
+
+
+def test_slice_errors_reject_an_empty_slice():
+    # Two films at the extremes leave the middle slice unfilled.
+    errors = np.array([1.0, 2.0])
+    thickness = np.array([110.0, 190.0])
+    with pytest.raises(ValueError, match="holds no films"):
+        thickness_slice_errors(errors, thickness, [100.0, 140.0, 180.0, 220.0])
+
+
+def test_slice_errors_reject_non_ascending_edges():
+    errors = np.array([1.0, 2.0])
+    thickness = np.array([110.0, 190.0])
+    with pytest.raises(ValueError, match="ascending"):
+        thickness_slice_errors(errors, thickness, [100.0, 200.0, 150.0])
+
+
+def test_slice_errors_reject_mismatched_or_nonfinite_input():
+    with pytest.raises(ValueError, match="one thickness per film error"):
+        thickness_slice_errors(np.zeros(3), np.zeros(2), [100.0, 200.0])
+    with pytest.raises(ValueError, match="finite"):
+        thickness_slice_errors(np.array([1.0, np.nan]), np.array([110.0, 190.0]), [100.0, 200.0])
