@@ -1,0 +1,67 @@
+# Thickness-aware comparison: the curve-only and thickness-conditioned
+# models trained side by side on the same frozen split as
+# configs/vae.yaml, the thickness-slice generator, and the pair-valued
+# evaluation in q-space and absorbance space. Every seed, width and
+# weight lives here, so the written record
+# (reports/thickness_experiments.json) and the figures are reproducible
+# from this file alone.
+
+data:
+  archive_dir: data/raw/Dataset
+
+split:  # identical to the frozen split used by the earlier records
+  test_fraction: 0.2
+  seed: 0
+  rare_stack_max_films: 20
+
+autoencoder:  # one recipe, two models: curve-only and conditioned
+  n_hidden: 64
+  # The PCA baseline keeps four components; the same latent width and
+  # the same slice component count keep every model at equal
+  # description width.
+  n_latent: 4
+  epochs: 300
+  learning_rate: 0.001
+  batch_size: 32
+  seed: 1
+
+variational:  # the anchor weight from the KL-weight calibration
+  n_hidden: 64
+  n_latent: 4
+  epochs: 300
+  learning_rate: 0.001
+  batch_size: 32
+  seed: 2
+  # The anchor sets the implied observation variance to 1 in
+  # standardized units (see absynth.train); conditioning changes the
+  # decoder input, so the objective and its weight carry over.
+  kl_weight: 0.00664
+
+pca:  # identical to the earlier records, so all records share PCA numbers
+  n_components: 4
+
+thickness_slices:
+  # Equal-count slices of the measured training thicknesses, each
+  # fitted with its own PCA description: the conditional structure
+  # this generator can express is piecewise constant in thickness.
+  n_slices: 4
+  n_components: 4
+
+sampling:
+  # Each generator draws as many synthetic films as there are training
+  # films, so population-level metrics compare like-sized populations.
+  # With the pinned split seed this is 417.
+  n_samples: 417
+  # Base seed; each generator draws with seed + its position in the
+  # record's generator list, stated in the record itself.
+  seed: 3
+  floor_seed: 2
+
+robustness:
+  # Multi-seed repeats of the conditioned models (the same widths,
+  # weight and optimization recipe) retrained from different seeds.
+  # The first seed of each list is the headline run above, which the
+  # runner reuses instead of retraining. Robustness draws sample with
+  # base seed + 100 + seed.
+  autoencoder_seeds: [1, 11, 21]
+  variational_seeds: [2, 12, 22]
