@@ -1,0 +1,921 @@
+{
+  "coupling": {
+    "conditioned_autoencoder_codes": -0.034798494535192154,
+    "conditioned_variational_kl_0.00664": -0.6267257629086059,
+    "heldout_measured": -0.7350213767673713,
+    "independent_marginal_pca": 0.03773974788700727,
+    "joint_floor": -0.6913744633815042,
+    "thickness_slices": -0.5605445041678595
+  },
+  "generation": {
+    "autoencoder_codes": {
+      "covariance_vs_heldout": {
+        "correlation_relative_frobenius": 0.11385732187029993,
+        "covariance_relative_frobenius": 0.2980967023759181
+      },
+      "mean_curve_deviation_vs_heldout": {
+        "max_abs": 0.0017670284574655823,
+        "mean_abs": 0.00048795610303317336
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 1.4930472531575811,
+        "synthetic_median": 0.008729037861273157,
+        "synthetic_q10": 0.004434958448491172,
+        "synthetic_q90": 0.01774111961602446
+      },
+      "sampling_seed": 4
+    },
+    "conditioned_autoencoder_codes": {
+      "coupling_pearson_r": -0.034798494535192154,
+      "covariance_vs_heldout_a_space": {
+        "correlation_relative_frobenius": 0.5273978128168021,
+        "covariance_relative_frobenius": 9.387505234664944
+      },
+      "covariance_vs_heldout_q_space": {
+        "correlation_relative_frobenius": 0.08193560653423497,
+        "covariance_relative_frobenius": 0.26274873840871454
+      },
+      "mean_curve_deviation_vs_heldout_a_space": {
+        "max_abs": 1.3088551473340928,
+        "mean_abs": 0.4035051721456497
+      },
+      "mean_curve_deviation_vs_heldout_q_space": {
+        "max_abs": 0.001956084904685123,
+        "mean_abs": 0.0005587293832397551
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 1.5933244344787825,
+        "synthetic_median": 0.009315304177040015,
+        "synthetic_q10": 0.005541706845219585,
+        "synthetic_q90": 0.017878938347091772
+      },
+      "sampling_seed": 7
+    },
+    "conditioned_variational_kl_0.00664": {
+      "coupling_pearson_r": -0.6267257629086059,
+      "covariance_vs_heldout_a_space": {
+        "correlation_relative_frobenius": 0.39536854926945514,
+        "covariance_relative_frobenius": 1.1705798171494717
+      },
+      "covariance_vs_heldout_q_space": {
+        "correlation_relative_frobenius": 0.2123337140273442,
+        "covariance_relative_frobenius": 0.4314246831384982
+      },
+      "mean_curve_deviation_vs_heldout_a_space": {
+        "max_abs": 0.5368694017429663,
+        "mean_abs": 0.08317554206599678
+      },
+      "mean_curve_deviation_vs_heldout_q_space": {
+        "max_abs": 0.0012614839455680335,
+        "mean_abs": 0.0003042716016451926
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 1.1884143589036849,
+        "synthetic_median": 0.006948014479656965,
+        "synthetic_q10": 0.0036516927416490397,
+        "synthetic_q90": 0.012660764108748558
+      },
+      "sampling_seed": 8
+    },
+    "independent_marginal_pca": {
+      "coupling_pearson_r": 0.03773974788700727,
+      "covariance_vs_heldout_a_space": {
+        "correlation_relative_frobenius": 0.5856571136002741,
+        "covariance_relative_frobenius": 14.787034034161028
+      },
+      "covariance_vs_heldout_q_space": {
+        "correlation_relative_frobenius": 0.10588391538776487,
+        "covariance_relative_frobenius": 0.38999082868972174
+      },
+      "curve_sampling_seed": 3,
+      "mean_curve_deviation_vs_heldout_a_space": {
+        "max_abs": 1.2914210923085259,
+        "mean_abs": 0.49645411999371936
+      },
+      "mean_curve_deviation_vs_heldout_q_space": {
+        "max_abs": 0.001492718516880552,
+        "mean_abs": 0.0005080902996843304
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 1.6748861603242549,
+        "synthetic_median": 0.009792151370878136,
+        "synthetic_q10": 0.005664106307293315,
+        "synthetic_q90": 0.019060655046719183
+      },
+      "sampling_seed": 9
+    },
+    "joint_floor": {
+      "coupling_pearson_r": -0.6913744633815042,
+      "covariance_vs_heldout_a_space": {
+        "correlation_relative_frobenius": 0.14788505777796962,
+        "covariance_relative_frobenius": 0.28644328665464475
+      },
+      "covariance_vs_heldout_q_space": {
+        "correlation_relative_frobenius": 0.087834979123152,
+        "covariance_relative_frobenius": 0.3939500798802089
+      },
+      "mean_curve_deviation_vs_heldout_a_space": {
+        "max_abs": 0.6694555097812618,
+        "mean_abs": 0.10832401631581258
+      },
+      "mean_curve_deviation_vs_heldout_q_space": {
+        "max_abs": 0.0017589479263069594,
+        "mean_abs": 0.00047913388004015443
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 0.0,
+        "synthetic_median": 0.0,
+        "synthetic_q10": 0.0,
+        "synthetic_q90": 4.16500117164066e-09
+      },
+      "sampling_seed": 2
+    },
+    "pca": {
+      "covariance_vs_heldout": {
+        "correlation_relative_frobenius": 0.10588391538776487,
+        "covariance_relative_frobenius": 0.38999082868972174
+      },
+      "mean_curve_deviation_vs_heldout": {
+        "max_abs": 0.001492718516880552,
+        "mean_abs": 0.0005080902996843304
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 1.6748861603242549,
+        "synthetic_median": 0.009792151370878136,
+        "synthetic_q10": 0.005664106307293315,
+        "synthetic_q90": 0.019060655046719183
+      },
+      "sampling_seed": 3
+    },
+    "thickness_slices": {
+      "coupling_pearson_r": -0.5605445041678595,
+      "covariance_vs_heldout_a_space": {
+        "correlation_relative_frobenius": 0.3067785455979759,
+        "covariance_relative_frobenius": 1.0949266207706827
+      },
+      "covariance_vs_heldout_q_space": {
+        "correlation_relative_frobenius": 0.09376640796931852,
+        "covariance_relative_frobenius": 0.4266518343575999
+      },
+      "mean_curve_deviation_vs_heldout_a_space": {
+        "max_abs": 0.563039002778746,
+        "mean_abs": 0.12726504823139273
+      },
+      "mean_curve_deviation_vs_heldout_q_space": {
+        "max_abs": 0.0017882625684065958,
+        "mean_abs": 0.0005360527490238141
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 1.04781802457949,
+        "synthetic_median": 0.0061260239345642935,
+        "synthetic_q10": 0.00319732922987218,
+        "synthetic_q90": 0.018612717701370265
+      },
+      "sampling_seed": 6
+    },
+    "variational_kl_0.00664": {
+      "covariance_vs_heldout": {
+        "correlation_relative_frobenius": 0.12172955318475792,
+        "covariance_relative_frobenius": 0.46553331943111836
+      },
+      "mean_curve_deviation_vs_heldout": {
+        "max_abs": 0.0013295683041589087,
+        "mean_abs": 0.00045448245803141074
+      },
+      "memorization": {
+        "heldout_median": 0.005846457868505161,
+        "heldout_q10": 0.00305825794654859,
+        "heldout_q90": 0.014595598997544012,
+        "median_ratio": 0.9990226799009614,
+        "synthetic_median": 0.005840744007722089,
+        "synthetic_q10": 0.003132256013343909,
+        "synthetic_q90": 0.010367186546526838
+      },
+      "sampling_seed": 5
+    }
+  },
+  "provenance": {
+    "config_path": "configs/thickness.yaml",
+    "dataset": {
+      "checksum": "md5:6599f206e94c527a8a4a6b534e99967a",
+      "doi": "10.5281/zenodo.19237616",
+      "licence": "CC BY 4.0"
+    },
+    "git": {
+      "revision": "9c32d6d1116ba0aac0b626e96d779e3df3803b50",
+      "tracked_changes": [],
+      "untracked_source": []
+    },
+    "package_versions": {
+      "absynth": "0.1.0",
+      "matplotlib": "3.11.2",
+      "numpy": "2.5.4",
+      "scikit-learn": "1.9.1",
+      "torch": "2.15.0+cpu"
+    },
+    "sampling_seeds": {
+      "autoencoder_codes": 4,
+      "conditioned_autoencoder_codes": 7,
+      "conditioned_variational_kl_0.00664": 8,
+      "conditioning_sensitivity": 10,
+      "independent_marginal_pca": 9,
+      "joint_floor": 2,
+      "pca": 3,
+      "thickness_slices": 6,
+      "variational_kl_0.00664": 5
+    },
+    "split": {
+      "families": {
+        "corning": {
+          "eligible_films": 180,
+          "target_test_films": 36,
+          "test_dates": [
+            "2023-10-04"
+          ],
+          "test_films": 41
+        },
+        "glass": {
+          "eligible_films": 300,
+          "target_test_films": 60,
+          "test_dates": [
+            "2024-02-28",
+            "2024-11-12"
+          ],
+          "test_films": 59
+        }
+      },
+      "method": "date_block_holdout",
+      "rare_stack_max_films": 20,
+      "rare_stacks": [
+        "FTO / TiO2-c",
+        "glass / TiO2-c / TiO2-mp"
+      ],
+      "seed": 0,
+      "test": {
+        "dates": [
+          "2023-10-04",
+          "2024-02-28",
+          "2024-11-12"
+        ],
+        "n_dates": 3,
+        "n_films": 100,
+        "stacks": {
+          "corning": 41,
+          "glass": 59
+        },
+        "thickness_nm": {
+          "max": 1299.5,
+          "median": 437.0,
+          "min": 176.5
+        }
+      },
+      "test_fraction": 0.2,
+      "train": {
+        "dates": [
+          "2023-09-06",
+          "2023-09-13",
+          "2023-09-27",
+          "2023-10-11",
+          "2023-10-18",
+          "2023-10-25",
+          "2023-11-23",
+          "2023-11-30",
+          "2023-12-08",
+          "2024-01-18",
+          "2024-06-13",
+          "2024-06-20",
+          "2024-06-27",
+          "2024-07-24",
+          "2024-08-01",
+          "2024-08-08",
+          "2024-08-14"
+        ],
+        "n_dates": 17,
+        "n_films": 417,
+        "stacks": {
+          "FTO / TiO2-c": 5,
+          "corning": 150,
+          "glass": 254,
+          "glass / TiO2-c / TiO2-mp": 8
+        },
+        "thickness_nm": {
+          "max": 1970.5,
+          "median": 440.0,
+          "min": 107.5
+        }
+      },
+      "train_locked_dates": [
+        "2023-09-06",
+        "2024-08-14"
+      ]
+    }
+  },
+  "reconstruction": {
+    "autoencoder": {
+      "heldout_reconstruction_a_space_nm_squared": 0.02357819772877003,
+      "heldout_reconstruction_nm_squared": 1.3295468135649655e-07,
+      "heldout_reconstruction_standardized": 0.009899909608066082,
+      "slices_a_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 0.014251476430066728,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 0.026563268680395373,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 0.029568242563461983,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 0.022211990260471253,
+          "n_films": 25,
+          "slice": 3
+        }
+      ],
+      "slices_q_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 2.1176405841985058e-07,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 1.6218682676721674e-07,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 1.264547133284766e-07,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 4.0220963783857595e-08,
+          "n_films": 25,
+          "slice": 3
+        }
+      ]
+    },
+    "conditioned_autoencoder": {
+      "conditioning_sensitivity": {
+        "heldout_mean_per_wavelength_std_nm_inverse": 0.002170725104374432,
+        "mean_abs_decoding_change_nm_inverse": 0.12005414068698883,
+        "ratio_to_heldout_spread": 55.30600832185359,
+        "thickness_hi_nm": 719.1200000000001,
+        "thickness_lo_nm": 214.8
+      },
+      "heldout_reconstruction_a_space_nm_squared": 0.022885060064157657,
+      "heldout_reconstruction_nm_squared": 1.3710716427020277e-07,
+      "heldout_reconstruction_standardized": 0.009395202621817589,
+      "slices_a_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 0.017059561083689875,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 0.024438051457561963,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 0.027384276067254285,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 0.021537234834484463,
+          "n_films": 25,
+          "slice": 3
+        }
+      ],
+      "slices_q_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 2.562739525195896e-07,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 1.495567081163478e-07,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 1.194942540741176e-07,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 3.8314808022523355e-08,
+          "n_films": 25,
+          "slice": 3
+        }
+      ]
+    },
+    "conditioned_variational_kl_0.00664": {
+      "conditioning_sensitivity": {
+        "heldout_mean_per_wavelength_std_nm_inverse": 0.002170725104374432,
+        "mean_abs_decoding_change_nm_inverse": 0.6269394159317017,
+        "ratio_to_heldout_spread": 288.8156656355506,
+        "thickness_hi_nm": 719.1200000000001,
+        "thickness_lo_nm": 214.8
+      },
+      "heldout_reconstruction_a_space_nm_squared": 0.05366132593113753,
+      "heldout_reconstruction_nm_squared": 2.840856051386167e-07,
+      "heldout_reconstruction_standardized": 0.019304124638438225,
+      "implied_noise_variance": 0.99932,
+      "latent_kl": [
+        1.4024659395217896,
+        0.8212621212005615,
+        0.19776323437690735,
+        2.2465310096740723
+      ],
+      "slices_a_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 0.020588375856640053,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 0.07769293988938743,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 0.058685797706043326,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 0.05234621396321718,
+          "n_films": 25,
+          "slice": 3
+        }
+      ],
+      "slices_q_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 2.9828319041979776e-07,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 4.7501225734487264e-07,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 2.6809531387177416e-07,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 9.029752636486118e-08,
+          "n_films": 25,
+          "slice": 3
+        }
+      ]
+    },
+    "pca": {
+      "heldout_reconstruction_a_space_nm_squared": 0.013610982892757814,
+      "heldout_reconstruction_nm_squared": 6.979224694239673e-08,
+      "slices_a_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 0.00772210552518151,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 0.012481816298914535,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 0.01281646440932507,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 0.020825608195929345,
+          "n_films": 25,
+          "slice": 3
+        }
+      ],
+      "slices_q_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 1.1893722548400507e-07,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 7.824220784726861e-08,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 5.468617526963624e-08,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 3.407126389129601e-08,
+          "n_films": 25,
+          "slice": 3
+        }
+      ]
+    },
+    "variational_kl_0.00664": {
+      "heldout_reconstruction_a_space_nm_squared": 0.04254409517002343,
+      "heldout_reconstruction_nm_squared": 1.9405813835260544e-07,
+      "heldout_reconstruction_standardized": 0.014527239836752415,
+      "implied_noise_variance": 0.99932,
+      "latent_kl": [
+        3.0087554454803467,
+        2.2398574352264404,
+        0.5794208645820618,
+        0.526350200176239
+      ],
+      "slices_a_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 0.01796772479613209,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 0.035322150442116035,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 0.03913048456203615,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 0.07536882307269782,
+          "n_films": 25,
+          "slice": 3
+        }
+      ],
+      "slices_q_space": [
+        {
+          "edges_nm": [
+            176.5,
+            369.2
+          ],
+          "mean_error": 2.6984516958952704e-07,
+          "n_films": 22,
+          "slice": 0
+        },
+        {
+          "edges_nm": [
+            369.2,
+            437.0
+          ],
+          "mean_error": 2.1668558655789936e-07,
+          "n_films": 26,
+          "slice": 1
+        },
+        {
+          "edges_nm": [
+            437.0,
+            562.875
+          ],
+          "mean_error": 1.7217380417963377e-07,
+          "n_films": 27,
+          "slice": 2
+        },
+        {
+          "edges_nm": [
+            562.875,
+            1299.5
+          ],
+          "mean_error": 1.2746808563741826e-07,
+          "n_films": 25,
+          "slice": 3
+        }
+      ]
+    }
+  },
+  "reference_metrics": {
+    "heldout_coupling_pearson_r": -0.7350213767673713,
+    "heldout_thickness_nm": {
+      "max": 1299.5,
+      "median": 437.0,
+      "min": 176.5
+    },
+    "n_films": 517,
+    "n_heldout_films": 100,
+    "n_training_films": 417,
+    "population_nearest_neighbour_median_nm_inverse": 0.004887516324142913,
+    "training_thickness_nm": {
+      "max": 1970.5,
+      "median": 440.0,
+      "min": 107.5
+    }
+  },
+  "robustness": {
+    "autoencoder": [
+      {
+        "coupling_pearson_r": -0.034798494535192154,
+        "covariance_relative_frobenius_q_space": 0.26274873840871454,
+        "heldout_reconstruction_a_space_nm_squared": 0.022885060064157657,
+        "heldout_reconstruction_nm_squared": 1.3710716427020277e-07,
+        "heldout_reconstruction_standardized": 0.009395202621817589,
+        "memorization_median_ratio": 1.5933244344787825,
+        "sampling_seed": 7,
+        "seed": 1
+      },
+      {
+        "coupling_pearson_r": -0.10210688237083372,
+        "covariance_relative_frobenius_q_space": 0.266129565397201,
+        "heldout_reconstruction_a_space_nm_squared": 0.01517535019357579,
+        "heldout_reconstruction_nm_squared": 9.412943221400667e-08,
+        "heldout_reconstruction_standardized": 0.006947614718228579,
+        "memorization_median_ratio": 1.6274191180743962,
+        "sampling_seed": 114,
+        "seed": 11
+      },
+      {
+        "coupling_pearson_r": 0.01325558448352482,
+        "covariance_relative_frobenius_q_space": 0.42586371793906347,
+        "heldout_reconstruction_a_space_nm_squared": 0.020605229808237983,
+        "heldout_reconstruction_nm_squared": 1.1507696072377355e-07,
+        "heldout_reconstruction_standardized": 0.008338011801242828,
+        "memorization_median_ratio": 1.749635392143891,
+        "sampling_seed": 124,
+        "seed": 21
+      }
+    ],
+    "autoencoder_seeds": [
+      1,
+      11,
+      21
+    ],
+    "summary": {
+      "autoencoder_coupling_pearson_r": {
+        "mean": -0.041216597474167026,
+        "std": 0.04731468217288866
+      },
+      "autoencoder_reconstruction_nm_squared": {
+        "mean": 1.15437852402661e-07,
+        "std": 1.754744131920594e-08
+      },
+      "n_diverged_seeds": {
+        "autoencoder": 0,
+        "variational": 1
+      },
+      "variational_coupling_pearson_r": {
+        "mean": -0.5796729288174118,
+        "std": 0.047052834091194096
+      },
+      "variational_memorization_median_ratio": {
+        "mean": 1.1872195618594723,
+        "std": 0.0011947970442125477
+      },
+      "variational_reconstruction_nm_squared": {
+        "mean": 2.9858789668420094e-07,
+        "std": 1.4502291545584195e-08
+      }
+    },
+    "variational": [
+      {
+        "coupling_pearson_r": -0.6267257629086059,
+        "covariance_relative_frobenius_q_space": 0.4314246831384982,
+        "heldout_reconstruction_a_space_nm_squared": 0.05366132593113753,
+        "heldout_reconstruction_nm_squared": 2.840856051386167e-07,
+        "heldout_reconstruction_standardized": 0.019304124638438225,
+        "latent_kl": [
+          1.4024659395217896,
+          0.8212621212005615,
+          0.19776323437690735,
+          2.2465310096740723
+        ],
+        "memorization_median_ratio": 1.1884143589036849,
+        "sampling_seed": 8,
+        "seed": 2
+      },
+      {
+        "detail": "training diverged: the code Gaussians are not finite with positive standard deviations at epoch 283 (seed 12, learning_rate 0.001); lower the learning rate or report the seed as unstable",
+        "diverged": true,
+        "seed": 12
+      },
+      {
+        "coupling_pearson_r": -0.5326200947262177,
+        "covariance_relative_frobenius_q_space": 0.46095227129840477,
+        "heldout_reconstruction_a_space_nm_squared": 0.05826905466773823,
+        "heldout_reconstruction_nm_squared": 3.130901882297851e-07,
+        "heldout_reconstruction_standardized": 0.023411301895976067,
+        "latent_kl": [
+          0.7795275449752808,
+          1.7212775945663452,
+          0.007453824859112501,
+          2.1908538341522217
+        ],
+        "memorization_median_ratio": 1.1860247648152598,
+        "sampling_seed": 125,
+        "seed": 22
+      }
+    ],
+    "variational_seeds": [
+      2,
+      12,
+      22
+    ]
+  },
+  "thickness_slices": {
+    "evaluation_partition": {
+      "edges_nm": [
+        176.5,
+        369.2,
+        437.0,
+        562.875,
+        1299.5
+      ],
+      "method": "held-out thickness quantiles"
+    },
+    "film_counts": [
+      104,
+      103,
+      105,
+      105
+    ],
+    "n_components": 4,
+    "n_slices": 4,
+    "slice_edges_nm": [
+      107.5,
+      295.5,
+      440.0,
+      588.0,
+      1970.5
+    ]
+  }
+}
