@@ -36,7 +36,9 @@ demonstration draws the two separately on purpose, to show the
 failure. The curve-only generators are evaluated as curve
 populations, in q-space only. The record carries the configuration
 path, git state, seeds, package versions and the dataset checksum; a
-robustness sweep repeats the conditioned models across seeds.
+robustness sweep repeats the conditioned models across seeds, and a
+seed whose training diverges is recorded as the instability it
+measures.
 """
 
 from __future__ import annotations
@@ -74,6 +76,7 @@ from absynth.thickness import fit_thickness_slice_generator, resample_joint
 from absynth.train import (
     AutoEncoderConfig,
     TrainedThicknessConditionedVariationalAutoEncoder,
+    TrainingDivergenceError,
     VariationalAutoEncoderConfig,
     train_autoencoder,
     train_thickness_conditioned_autoencoder,
@@ -596,9 +599,14 @@ def main() -> None:
                 f"robustness: training the conditioned autoencoder at seed = {seed} ...",
                 flush=True,
             )
-            trained = train_thickness_conditioned_autoencoder(
-                train, train_thickness, AutoEncoderConfig(**{**config["autoencoder"], "seed": seed})
-            )
+            try:
+                trained = train_thickness_conditioned_autoencoder(
+                    train,
+                    train_thickness,
+                    AutoEncoderConfig(**{**config["autoencoder"], "seed": seed}),
+                )
+            except TrainingDivergenceError as error:
+                return {"seed": seed, "diverged": True, "detail": str(error)}
             standardized_mse, nm2, _per_film_nm2, per_film_a2 = _conditioned_reconstruction(
                 trained.model,
                 trained.standardizer,
@@ -647,11 +655,14 @@ def main() -> None:
                 f"robustness: training the conditioned variational model at seed = {seed} ...",
                 flush=True,
             )
-            trained = train_thickness_conditioned_variational_autoencoder(
-                train,
-                train_thickness,
-                VariationalAutoEncoderConfig(**{**config["variational"], "seed": seed}),
-            )
+            try:
+                trained = train_thickness_conditioned_variational_autoencoder(
+                    train,
+                    train_thickness,
+                    VariationalAutoEncoderConfig(**{**config["variational"], "seed": seed}),
+                )
+            except TrainingDivergenceError as error:
+                return {"seed": seed, "diverged": True, "detail": str(error)}
             standardized_mse, nm2, _per_film_nm2, per_film_a2 = _conditioned_reconstruction(
                 trained.model,
                 trained.standardizer,
@@ -687,26 +698,38 @@ def main() -> None:
     def _spread(values: list[float]) -> dict[str, float]:
         return {"mean": float(np.mean(values)), "std": float(np.std(values))}
 
+    def _converged(entries: list[dict[str, object]], key: str) -> list[float]:
+        """A metric's values over the entries whose training converged."""
+        return [entry[key] for entry in entries if not entry.get("diverged")]
+
     robustness = {
         "autoencoder_seeds": robustness_ae_seeds,
         "variational_seeds": robustness_vae_seeds,
         "autoencoder": robustness_ae_entries,
         "variational": robustness_vae_entries,
         "summary": {
+            "n_diverged_seeds": {
+                "autoencoder": sum(
+                    1 for entry in robustness_ae_entries if entry.get("diverged")
+                ),
+                "variational": sum(
+                    1 for entry in robustness_vae_entries if entry.get("diverged")
+                ),
+            },
             "autoencoder_reconstruction_nm_squared": _spread(
-                [entry["heldout_reconstruction_nm_squared"] for entry in robustness_ae_entries]
+                _converged(robustness_ae_entries, "heldout_reconstruction_nm_squared")
             ),
             "autoencoder_coupling_pearson_r": _spread(
-                [entry["coupling_pearson_r"] for entry in robustness_ae_entries]
+                _converged(robustness_ae_entries, "coupling_pearson_r")
             ),
             "variational_reconstruction_nm_squared": _spread(
-                [entry["heldout_reconstruction_nm_squared"] for entry in robustness_vae_entries]
+                _converged(robustness_vae_entries, "heldout_reconstruction_nm_squared")
             ),
             "variational_coupling_pearson_r": _spread(
-                [entry["coupling_pearson_r"] for entry in robustness_vae_entries]
+                _converged(robustness_vae_entries, "coupling_pearson_r")
             ),
             "variational_memorization_median_ratio": _spread(
-                [entry["memorization_median_ratio"] for entry in robustness_vae_entries]
+                _converged(robustness_vae_entries, "memorization_median_ratio")
             ),
         },
     }
