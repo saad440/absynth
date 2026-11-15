@@ -6,6 +6,7 @@ import torch
 
 from absynth.train import (
     AutoEncoderConfig,
+    TrainingDivergenceError,
     VariationalAutoEncoderConfig,
     train_autoencoder,
     train_thickness_conditioned_autoencoder,
@@ -344,3 +345,38 @@ def test_conditioned_vae_sample_returns_aligned_pairs():
     assert np.isfinite(first[0]).all()
     assert np.array_equal(first[0], again[0])
     assert np.array_equal(first[1], again[1])
+
+
+# --- training divergence --------------------------------------------------
+
+
+def test_divergence_raises_for_the_plain_autoencoder():
+    # A learning rate a few orders too high blows the loss past the
+    # float32 range within a few batches; the loop names the failure
+    # at its source instead of letting NaN reach codes and samples.
+    with pytest.raises(TrainingDivergenceError, match="diverged"):
+        train_autoencoder(make_curves(), make_config(epochs=5, learning_rate=1e9))
+
+
+def test_divergence_raises_for_the_plain_variational_model():
+    # The variational failure mode: the encoder's log-variance head
+    # explodes, the code Gaussians' standard deviations overflow, and
+    # the check fires before the non-finite draw reaches the decoder.
+    with pytest.raises(TrainingDivergenceError, match="code Gaussians"):
+        train_variational_autoencoder(make_curves(), make_vae_config(epochs=5, learning_rate=1e4))
+
+
+def test_divergence_raises_for_the_conditioned_autoencoder():
+    with pytest.raises(TrainingDivergenceError, match="diverged"):
+        train_thickness_conditioned_autoencoder(
+            make_curves(), make_thickness(), make_config(epochs=5, learning_rate=1e9)
+        )
+
+
+def test_divergence_raises_for_the_conditioned_variational_model():
+    # The extra decoder inputs change the initialization draw, so this
+    # seed diverges on a steeper schedule than the unconditioned one.
+    with pytest.raises(TrainingDivergenceError, match="diverged"):
+        train_thickness_conditioned_variational_autoencoder(
+            make_curves(), make_thickness(), make_vae_config(epochs=10, learning_rate=1e6)
+        )

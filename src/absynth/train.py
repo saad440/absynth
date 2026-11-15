@@ -46,7 +46,9 @@ contract as the generators of absynth.thickness.
 Reproducibility: the configuration's seed drives the weight
 initialization and the batch shuffling through dedicated torch random
 generators, so a given configuration and curve matrix reproduce a
-given training run exactly.
+given training run exactly. A non-finite loss or code Gaussian raises
+TrainingDivergenceError at its source instead of propagating NaN into
+codes, diagnostics and samples.
 """
 
 from __future__ import annotations
@@ -67,6 +69,18 @@ from absynth.models import (
     VariationalAutoEncoder,
     latent_kl_per_dimension,
 )
+
+
+class TrainingDivergenceError(RuntimeError):
+    """Raised when gradient descent produces non-finite losses.
+
+    Divergence at a given learning rate is seed-dependent: an
+    unlucky initialization can blow the weights up within a few
+    epochs while the same recipe converges from other seeds. The
+    message names the epoch, the seed and the learning rate; a
+    diverged seed is a measured instability of the recipe, reported
+    like any other result.
+    """
 
 
 @dataclass(frozen=True)
@@ -192,6 +206,8 @@ def train_autoencoder(training_curves: np.ndarray, config: AutoEncoderConfig) ->
             wavelength column never varies, or if a configuration
             value fails its checks, including a latent width that is
             not smaller than the grid.
+        TrainingDivergenceError: If the loss becomes non-finite
+            during training.
     """
     curves = np.asarray(training_curves, dtype=float)
     if curves.ndim != 2 or curves.shape[0] == 0:
@@ -215,11 +231,17 @@ def train_autoencoder(training_curves: np.ndarray, config: AutoEncoderConfig) ->
 
     n_training = standardized.shape[0]
     epoch_losses = []
-    for _ in range(config.epochs):
+    for epoch in range(1, config.epochs + 1):
         epoch_loss = 0.0
         for batch in batches:
             optimizer.zero_grad()
             loss = mse_loss(model(batch), batch)
+            if not bool(torch.isfinite(loss)):
+                raise TrainingDivergenceError(
+                    f"training diverged: the loss is not finite at epoch {epoch} "
+                    f"(seed {config.seed}, learning_rate {config.learning_rate}); "
+                    "lower the learning rate or report the seed as unstable"
+                )
             loss.backward()
             optimizer.step()
             epoch_loss += float(loss.detach()) * batch.shape[0]
@@ -367,6 +389,8 @@ def train_thickness_conditioned_autoencoder(
             with the curve rows, or a configuration value fails its
             checks, including a latent width that is not smaller than
             the grid.
+        TrainingDivergenceError: If the loss becomes non-finite
+            during training.
     """
     curves, thickness_nm = _checked_thickness_pair(training_curves, training_thickness_nm)
     standardizer = CurveStandardizer.fit(curves)
@@ -392,11 +416,17 @@ def train_thickness_conditioned_autoencoder(
 
     n_training = standardized.shape[0]
     epoch_losses = []
-    for _ in range(config.epochs):
+    for epoch in range(1, config.epochs + 1):
         epoch_loss = 0.0
         for curves_batch, thickness_batch in batches:
             optimizer.zero_grad()
             loss = mse_loss(model(curves_batch, thickness_batch), curves_batch)
+            if not bool(torch.isfinite(loss)):
+                raise TrainingDivergenceError(
+                    f"training diverged: the loss is not finite at epoch {epoch} "
+                    f"(seed {config.seed}, learning_rate {config.learning_rate}); "
+                    "lower the learning rate or report the seed as unstable"
+                )
             loss.backward()
             optimizer.step()
             epoch_loss += float(loss.detach()) * curves_batch.shape[0]
@@ -519,6 +549,8 @@ def train_variational_autoencoder(
             wavelength column never varies, or if a configuration
             value fails its checks, including a latent width that is
             not smaller than the grid.
+        TrainingDivergenceError: If the loss becomes non-finite or the
+            code Gaussians degenerate during training.
     """
     curves = np.asarray(training_curves, dtype=float)
     if curves.ndim != 2 or curves.shape[0] == 0:
@@ -543,12 +575,23 @@ def train_variational_autoencoder(
     n_training = standardized.shape[0]
     epoch_reconstruction = []
     epoch_kl = []
-    for _ in range(config.epochs):
+    for epoch in range(1, config.epochs + 1):
         epoch_mse = 0.0
         epoch_kl_sum = 0.0
         for batch in batches:
             optimizer.zero_grad()
             mean, std = model.encode(batch)
+            if not (
+                bool(torch.isfinite(mean).all())
+                and bool(torch.isfinite(std).all())
+                and bool((std > 0).all())
+            ):
+                raise TrainingDivergenceError(
+                    f"training diverged: the code Gaussians are not finite with "
+                    f"positive standard deviations at epoch {epoch} "
+                    f"(seed {config.seed}, learning_rate {config.learning_rate}); "
+                    "lower the learning rate or report the seed as unstable"
+                )
             rebuilt = model.decode(model.sample_latent(mean, std))
             reconstruction = mse_loss(rebuilt, batch)
             kl = latent_kl_per_dimension(mean, std).sum(dim=1).mean()
@@ -690,6 +733,8 @@ def train_thickness_conditioned_variational_autoencoder(
             with the curve rows, or a configuration value fails its
             checks, including a latent width that is not smaller than
             the grid.
+        TrainingDivergenceError: If the loss becomes non-finite or the
+            code Gaussians degenerate during training.
     """
     curves, thickness_nm = _checked_thickness_pair(training_curves, training_thickness_nm)
     standardizer = CurveStandardizer.fit(curves)
@@ -716,12 +761,23 @@ def train_thickness_conditioned_variational_autoencoder(
     n_training = standardized.shape[0]
     epoch_reconstruction = []
     epoch_kl = []
-    for _ in range(config.epochs):
+    for epoch in range(1, config.epochs + 1):
         epoch_mse = 0.0
         epoch_kl_sum = 0.0
         for curves_batch, thickness_batch in batches:
             optimizer.zero_grad()
             mean, std = model.encode(curves_batch)
+            if not (
+                bool(torch.isfinite(mean).all())
+                and bool(torch.isfinite(std).all())
+                and bool((std > 0).all())
+            ):
+                raise TrainingDivergenceError(
+                    f"training diverged: the code Gaussians are not finite with "
+                    f"positive standard deviations at epoch {epoch} "
+                    f"(seed {config.seed}, learning_rate {config.learning_rate}); "
+                    "lower the learning rate or report the seed as unstable"
+                )
             rebuilt = model.decode(model.sample_latent(mean, std), thickness_batch)
             reconstruction = mse_loss(rebuilt, curves_batch)
             kl = latent_kl_per_dimension(mean, std).sum(dim=1).mean()
