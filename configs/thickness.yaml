@@ -60,8 +60,9 @@ sampling:
 robustness:
   # Multi-seed repeats of the conditioned models (the same widths,
   # weight and optimization recipe) retrained from different seeds.
-  # The first seed of each list is the headline run above, which the
-  # runner reuses instead of retraining. Robustness draws sample with
-  # base seed + 100 + seed.
-  autoencoder_seeds: [1, 11, 21]
-  variational_seeds: [2, 12, 22]
+  # Five seeds per model (the survivor-bias expansion): the first
+  # seed of each list is the headline run above, whose entry reuses
+  # the headline run's own draw instead of retraining and resampling.
+  # The other seeds draw samples with base seed + 100 + seed.
+  autoencoder_seeds: [1, 11, 21, 31, 41]
+  variational_seeds: [2, 12, 22, 32, 42]

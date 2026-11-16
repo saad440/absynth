@@ -1,0 +1,52 @@
+# Survivor-bias diagnostics for the thickness comparison's robustness
+# sweep: the truncated rerun of the seed whose training diverged, and
+# the same-horizon comparison with the seeds that converged. The
+# question: are the reported seed statistics representative, or did
+# the converged seeds earn their place by never failing?
+#
+# Every value in the data, split, variational and sampling blocks is
+# duplicated from configs/thickness.yaml on purpose: the diagnostics
+# must retrace the frozen thickness record's training exactly, so a
+# truncated run reproduces the prefix of the original trajectory and
+# a full-horizon run reproduces the original entry bit-for-bit. If a
+# value changes in configs/thickness.yaml, it has to change here in
+# the same commit, or the comparison loses its meaning.
+
+data:
+  archive_dir: data/raw/Dataset
+
+split:  # identical to configs/thickness.yaml
+  test_fraction: 0.2
+  seed: 0
+  rare_stack_max_films: 20
+
+variational:  # identical to configs/thickness.yaml
+  n_hidden: 64
+  n_latent: 4
+  epochs: 300      # the full-horizon value; the truncated runs override it
+  learning_rate: 0.001
+  batch_size: 32
+  seed: 2          # the headline run's seed; the diagnostics sweep the robustness seeds
+  kl_weight: 0.00664
+
+sampling:  # identical to configs/thickness.yaml
+  n_samples: 417
+  # Robustness draws use base seed + 100 + seed, as in the runner —
+  # except the headline seed, whose entry reuses the headline run's
+  # own draw (base seed + 5, the conditioned variational model's
+  # position in the record's generator list). The runner's rule is
+  # mirrored exactly so the full-horizon entries can match the frozen
+  # record bit for bit.
+  seed: 3
+
+diagnostics:
+  # The conditioned variational model's robustness seeds in
+  # configs/thickness.yaml at the time of the G5 verdict. The first
+  # entry is the headline seed, the second is the one that diverged.
+  seeds: [2, 12, 22]
+  # Strictly before the recorded divergence epoch (283): training is
+  # seeded from config.seed alone, so a 250-epoch run reproduces the
+  # first 250 epochs of the diverged 300-epoch trajectory exactly and
+  # ends in its genuine pre-divergence state.
+  truncated_epochs: 250
+  full_horizon_epochs: 300
