@@ -1,0 +1,331 @@
+{
+  "full_horizon": [
+    {
+      "coupling_pearson_r": -0.6267257629086059,
+      "covariance_relative_frobenius_q_space": 0.4314246831384982,
+      "epoch_kl_tail10": [
+        4.863192754969608,
+        5.01170358440573,
+        4.989795774007015,
+        4.933628698047117,
+        4.907467425870095,
+        5.017647217217681,
+        4.816800738410127,
+        4.7697001944342965,
+        5.260885199768651,
+        4.908815828158701
+      ],
+      "epochs": 300,
+      "frozen_record_match": {
+        "coupling_pearson_r": true,
+        "covariance_relative_frobenius_q_space": true,
+        "heldout_reconstruction_a_space_nm_squared": true,
+        "heldout_reconstruction_nm_squared": true,
+        "heldout_reconstruction_standardized": true,
+        "latent_kl": true,
+        "memorization_median_ratio": true,
+        "sampling_seed": true,
+        "seed": true
+      },
+      "frozen_record_match_all": true,
+      "heldout_reconstruction_a_space_nm_squared": 0.05366132593113753,
+      "heldout_reconstruction_nm_squared": 2.840856051386167e-07,
+      "heldout_reconstruction_standardized": 0.019304124638438225,
+      "latent_kl": [
+        1.4024659395217896,
+        0.8212621212005615,
+        0.19776323437690735,
+        2.2465310096740723
+      ],
+      "memorization_median_ratio": 1.1884143589036849,
+      "sampling_seed": 8,
+      "seed": 2
+    },
+    {
+      "detail": "training diverged: the code Gaussians are not finite with positive standard deviations at epoch 283 (seed 12, learning_rate 0.001); lower the learning rate or report the seed as unstable",
+      "diverged": true,
+      "seed": 12
+    },
+    {
+      "coupling_pearson_r": -0.5326200947262177,
+      "covariance_relative_frobenius_q_space": 0.46095227129840477,
+      "epoch_kl_tail10": [
+        4.804725584080465,
+        4.835017856076467,
+        5.273695261930104,
+        5.523035343316534,
+        4.769248984128737,
+        4.921196985587799,
+        4.952805329855683,
+        5.060121181771624,
+        5.042280376672173,
+        4.99689717830228
+      ],
+      "epochs": 300,
+      "frozen_record_match": {
+        "coupling_pearson_r": true,
+        "covariance_relative_frobenius_q_space": true,
+        "heldout_reconstruction_a_space_nm_squared": true,
+        "heldout_reconstruction_nm_squared": true,
+        "heldout_reconstruction_standardized": true,
+        "latent_kl": true,
+        "memorization_median_ratio": true,
+        "sampling_seed": true,
+        "seed": true
+      },
+      "frozen_record_match_all": true,
+      "heldout_reconstruction_a_space_nm_squared": 0.05826905466773823,
+      "heldout_reconstruction_nm_squared": 3.130901882297851e-07,
+      "heldout_reconstruction_standardized": 0.023411301895976067,
+      "latent_kl": [
+        0.7795275449752808,
+        1.7212775945663452,
+        0.007453824859112501,
+        2.1908538341522217
+      ],
+      "memorization_median_ratio": 1.1860247648152598,
+      "sampling_seed": 125,
+      "seed": 22
+    }
+  ],
+  "protocol": {
+    "full_horizon_epochs": 300,
+    "n_samples": 417,
+    "sampling_base_seed": 3,
+    "sampling_seed_rule": "base seed + 100 + seed",
+    "seeds": [
+      2,
+      12,
+      22
+    ],
+    "truncated_epochs": 250
+  },
+  "provenance": {
+    "config_path": "configs/seed_diagnostics.yaml",
+    "dataset": {
+      "checksum": "md5:6599f206e94c527a8a4a6b534e99967a",
+      "doi": "10.5281/zenodo.19237616",
+      "licence": "CC BY 4.0"
+    },
+    "frozen_record": "reports/thickness_experiments.json",
+    "git": {
+      "revision": "06a3fe2eeff3a72d9e9ba714e62150befbeb33bc",
+      "tracked_changes": [],
+      "untracked_source": []
+    },
+    "package_versions": {
+      "absynth": "0.1.0",
+      "matplotlib": "3.11.2",
+      "numpy": "2.5.4",
+      "scikit-learn": "1.9.1",
+      "torch": "2.15.0+cpu"
+    },
+    "split": {
+      "families": {
+        "corning": {
+          "eligible_films": 180,
+          "target_test_films": 36,
+          "test_dates": [
+            "2023-10-04"
+          ],
+          "test_films": 41
+        },
+        "glass": {
+          "eligible_films": 300,
+          "target_test_films": 60,
+          "test_dates": [
+            "2024-02-28",
+            "2024-11-12"
+          ],
+          "test_films": 59
+        }
+      },
+      "method": "date_block_holdout",
+      "rare_stack_max_films": 20,
+      "rare_stacks": [
+        "FTO / TiO2-c",
+        "glass / TiO2-c / TiO2-mp"
+      ],
+      "seed": 0,
+      "test": {
+        "dates": [
+          "2023-10-04",
+          "2024-02-28",
+          "2024-11-12"
+        ],
+        "n_dates": 3,
+        "n_films": 100,
+        "stacks": {
+          "corning": 41,
+          "glass": 59
+        },
+        "thickness_nm": {
+          "max": 1299.5,
+          "median": 437.0,
+          "min": 176.5
+        }
+      },
+      "test_fraction": 0.2,
+      "train": {
+        "dates": [
+          "2023-09-06",
+          "2023-09-13",
+          "2023-09-27",
+          "2023-10-11",
+          "2023-10-18",
+          "2023-10-25",
+          "2023-11-23",
+          "2023-11-30",
+          "2023-12-08",
+          "2024-01-18",
+          "2024-06-13",
+          "2024-06-20",
+          "2024-06-27",
+          "2024-07-24",
+          "2024-08-01",
+          "2024-08-08",
+          "2024-08-14"
+        ],
+        "n_dates": 17,
+        "n_films": 417,
+        "stacks": {
+          "FTO / TiO2-c": 5,
+          "corning": 150,
+          "glass": 254,
+          "glass / TiO2-c / TiO2-mp": 8
+        },
+        "thickness_nm": {
+          "max": 1970.5,
+          "median": 440.0,
+          "min": 107.5
+        }
+      },
+      "train_locked_dates": [
+        "2023-09-06",
+        "2024-08-14"
+      ]
+    }
+  },
+  "question": "Are the converged robustness seeds representative? One conditioned variational seed diverged during the thickness comparison's robustness sweep, and the seed statistics in the frozen record are computed over the seeds whose training converged. Because training is seeded from the configuration alone, a run truncated to before the recorded divergence reproduces the diverged trajectory up to that epoch; its final state is the diverged seed's genuine pre-divergence state, compared here with the converged seeds at the identical horizon.",
+  "truncated": [
+    {
+      "coupling_pearson_r": -0.6382247539500442,
+      "covariance_relative_frobenius_q_space": 0.47014912659674335,
+      "epoch_kl_tail10": [
+        5.002565948797359,
+        5.035517497028378,
+        4.817403536048724,
+        4.909599620947163,
+        4.99678947142274,
+        4.728226910963905,
+        5.395862463852771,
+        5.240001946044483,
+        5.4804550989640415,
+        5.302639167657573
+      ],
+      "epochs": 250,
+      "heldout_reconstruction_a_space_nm_squared": 0.06372187766365087,
+      "heldout_reconstruction_nm_squared": 3.4176635321261377e-07,
+      "heldout_reconstruction_standardized": 0.024287687614560127,
+      "latent_kl": [
+        1.348908543586731,
+        1.000723123550415,
+        0.11035570502281189,
+        2.4193100929260254
+      ],
+      "memorization_median_ratio": 1.1643939856916259,
+      "sampling_seed": 8,
+      "seed": 2
+    },
+    {
+      "coupling_pearson_r": -0.5293298452224663,
+      "covariance_relative_frobenius_q_space": 0.413895936616597,
+      "epoch_kl_tail10": [
+        5.025368060425317,
+        5.066423503043269,
+        4.988390276472059,
+        5.196986887952407,
+        5.145554908459707,
+        5.1704445228302225,
+        4.9706847970720105,
+        5.100090722100054,
+        5.095375080474561,
+        4.9078646529492715
+      ],
+      "epochs": 250,
+      "heldout_reconstruction_a_space_nm_squared": 0.0766448944900548,
+      "heldout_reconstruction_nm_squared": 3.7962498009115723e-07,
+      "heldout_reconstruction_standardized": 0.0267548318952322,
+      "latent_kl": [
+        2.0452795028686523,
+        0.43632233142852783,
+        0.2074039727449417,
+        2.2355446815490723
+      ],
+      "memorization_median_ratio": 1.1719967003623402,
+      "sampling_seed": 115,
+      "seed": 12
+    },
+    {
+      "coupling_pearson_r": -0.5411341670785995,
+      "covariance_relative_frobenius_q_space": 0.46273678469974483,
+      "epoch_kl_tail10": [
+        4.925259116742251,
+        5.131446840665895,
+        5.012980015729543,
+        5.1182699020532105,
+        5.048286699848496,
+        5.492474821259935,
+        5.241425729198135,
+        5.2698690862678506,
+        5.077904342175674,
+        5.228041488775532
+      ],
+      "epochs": 250,
+      "heldout_reconstruction_a_space_nm_squared": 0.0682864768100829,
+      "heldout_reconstruction_nm_squared": 3.547687380039078e-07,
+      "heldout_reconstruction_standardized": 0.023155810311436653,
+      "latent_kl": [
+        0.8766626715660095,
+        1.942436695098877,
+        0.005863604601472616,
+        2.213737726211548
+      ],
+      "memorization_median_ratio": 1.2253301405514374,
+      "sampling_seed": 125,
+      "seed": 22
+    }
+  ],
+  "truncated_comparison": {
+    "coupling_pearson_r": {
+      "12": -0.5293298452224663,
+      "2": -0.6382247539500442,
+      "22": -0.5411341670785995
+    },
+    "covariance_relative_frobenius_q_space": {
+      "12": 0.413895936616597,
+      "2": 0.47014912659674335,
+      "22": 0.46273678469974483
+    },
+    "heldout_reconstruction_a_space_nm_squared": {
+      "12": 0.0766448944900548,
+      "2": 0.06372187766365087,
+      "22": 0.0682864768100829
+    },
+    "heldout_reconstruction_nm_squared": {
+      "12": 3.7962498009115723e-07,
+      "2": 3.4176635321261377e-07,
+      "22": 3.547687380039078e-07
+    },
+    "heldout_reconstruction_standardized": {
+      "12": 0.0267548318952322,
+      "2": 0.024287687614560127,
+      "22": 0.023155810311436653
+    },
+    "memorization_median_ratio": {
+      "12": 1.1719967003623402,
+      "2": 1.1643939856916259,
+      "22": 1.2253301405514374
+    }
+  }
+}
