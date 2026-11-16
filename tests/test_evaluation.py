@@ -15,6 +15,7 @@ from absynth.evaluation import (
     nearest_training_distances,
     quantile_band,
     scaling_exponent,
+    sensitivity_decomposition,
     thickness_slice_errors,
 )
 
@@ -286,6 +287,44 @@ def test_scaling_exponent_rejects_invalid_input():
         scaling_exponent(np.array([0.6, 0.7]), np.array([100.0, 100.0]), rng)
     with pytest.raises(ValueError, match="n_bootstrap must be positive"):
         scaling_exponent(np.array([0.6, 0.7]), np.array([100.0, 200.0]), rng, n_bootstrap=0)
+
+
+# --- sensitivity direction ------------------------------------------------
+
+
+def test_sensitivity_along_the_mean_curve_is_pure_amplitude():
+    grid = np.linspace(300.0, 900.0, 31)
+    reference = 0.02 + 0.01 * np.cos(np.linspace(0.0, np.pi, 31))
+    delta = np.array([3.0 * reference, 0.5 * reference])
+    record = sensitivity_decomposition(delta, reference, grid)
+    assert record["amplitude_fraction"] == pytest.approx(1.0)
+    assert record["amplitude_fraction_per_code_mean"] == pytest.approx(1.0)
+    assert record["residual_wavelength_pearson_r"] == 0.0
+
+
+def test_sensitivity_residual_reads_its_wavelength_direction():
+    reference = np.full(31, 0.02)
+    trend = np.linspace(1.0, -1.0, 31)
+    delta = np.array([2.0 * reference, 0.001 * trend + 0.002 * reference])
+    record = sensitivity_decomposition(delta, reference, np.linspace(300.0, 900.0, 31))
+    # The first row is pure amplitude; the second mixes amplitude with
+    # a residual that shrinks along the wavelength grid, the
+    # scattering-like direction.
+    assert 0.0 < record["amplitude_fraction"] < 1.0
+    assert 0.0 < record["amplitude_fraction_per_code_mean"] < 1.0
+    assert record["residual_wavelength_pearson_r"] == pytest.approx(-1.0)
+
+
+def test_sensitivity_decomposition_rejects_invalid_input():
+    grid = np.linspace(300.0, 900.0, 4)
+    with pytest.raises(ValueError, match="reference curve has shape"):
+        sensitivity_decomposition(np.zeros((2, 4)), np.zeros(3), grid)
+    with pytest.raises(ValueError, match="wavelengths have shape"):
+        sensitivity_decomposition(np.zeros((2, 4)), np.zeros(4), np.zeros(3))
+    with pytest.raises(ValueError, match="finite"):
+        sensitivity_decomposition(np.array([[0.0, np.nan, 0.0, 0.0]]), np.full(4, 0.02), grid)
+    with pytest.raises(ValueError, match="no direction"):
+        sensitivity_decomposition(np.zeros((2, 4)), np.zeros(4), grid)
 
 
 def test_slice_errors_are_exact_slice_means():

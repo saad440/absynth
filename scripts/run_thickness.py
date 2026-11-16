@@ -71,6 +71,7 @@ from absynth.evaluation import (
     nearest_training_distances,
     quantile_band,
     scaling_exponent,
+    sensitivity_decomposition,
     thickness_slice_errors,
 )
 from absynth.explore import nearest_neighbour_distances
@@ -230,6 +231,7 @@ def _conditioning_sensitivity(
     training_thickness_nm: np.ndarray,
     seed: int,
     held_out: np.ndarray,
+    wavelengths_nm: np.ndarray,
 ) -> dict[str, float]:
     """How much the thickness input moves the decoding, at fixed codes.
 
@@ -238,7 +240,12 @@ def _conditioning_sensitivity(
     training thicknesses. The mean absolute change across wavelengths
     is read against the held-out films' mean per-wavelength spread,
     the population's own variability scale: a ratio near 0 means the
-    conditioning never attached and the model ignores the input.
+    conditioning never attached and the model ignores the input. The
+    change is then split along the held-out mean-curve direction, the
+    curve-height axis. Amplitude means the thickness input rescales
+    curves; shape means it moves wavelengths differently. A residual
+    coherent in wavelength would carry thickness-dependent physics
+    that a pure rescaling cannot express.
     """
     thickness_lo, thickness_hi = np.quantile(training_thickness_nm, [0.1, 0.9])
     n_codes = 64
@@ -261,14 +268,19 @@ def _conditioning_sensitivity(
         )
         with torch.no_grad():
             decoded[label] = trained.model.decode(codes, standardized).numpy()
-    sensitivity = float(np.abs(decoded["hi"] - decoded["lo"]).mean())
+    delta = decoded["hi"] - decoded["lo"]
+    sensitivity = float(np.abs(delta).mean())
     spread = float(held_out.std(axis=0).mean())
+    decomposition = sensitivity_decomposition(delta, held_out.mean(axis=0), wavelengths_nm)
     return {
         "thickness_lo_nm": float(thickness_lo),
         "thickness_hi_nm": float(thickness_hi),
         "mean_abs_decoding_change_nm_inverse": sensitivity,
         "heldout_mean_per_wavelength_std_nm_inverse": spread,
         "ratio_to_heldout_spread": sensitivity / spread,
+        "amplitude_fraction": decomposition["amplitude_fraction"],
+        "amplitude_fraction_per_code_mean": decomposition["amplitude_fraction_per_code_mean"],
+        "residual_wavelength_pearson_r": decomposition["residual_wavelength_pearson_r"],
     }
 
 
@@ -616,6 +628,7 @@ def main() -> None:
                 train_thickness,
                 sampling_seeds["conditioning_sensitivity"],
                 held_out,
+                wavelengths_nm,
             ),
         }
         if variational_flag:

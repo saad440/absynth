@@ -452,6 +452,89 @@ def scaling_exponent(
     }
 
 
+def sensitivity_decomposition(
+    delta: np.ndarray,
+    reference_mean_curve: np.ndarray,
+    wavelengths_nm: np.ndarray,
+) -> dict[str, float]:
+    """Split a decoder's thickness sensitivity into amplitude and shape.
+
+    The sensitivity vectors are the changes a conditioning input
+    produces at fixed codes, one per code, shape
+    ``(n_codes, n_wavelengths)``. Each is projected on the reference
+    population's mean-curve direction, the curve-height axis: the
+    projection's squared share of the vector is amplitude, and the
+    orthogonal remainder is shape. A coherent residual carries
+    thickness-dependent physics that a pure rescaling cannot express,
+    such as a background that grows toward short wavelengths; its
+    correlation with wavelength states which way.
+
+    Args:
+        delta: Sensitivity vectors, shape ``(n_codes, n_wavelengths)``,
+            finite, at least one row.
+        reference_mean_curve: The reference population's mean curve,
+            shape ``(n_wavelengths,)``, nonzero.
+        wavelengths_nm: The grid wavelengths in nm, same width, used
+            only for the residual's correlation.
+
+    Returns:
+        ``amplitude_fraction``: the share of the mean sensitivity
+        vector's energy along the mean-curve direction.
+        ``amplitude_fraction_per_code_mean``: the same share averaged
+        over the codes with nonzero sensitivity.
+        ``residual_wavelength_pearson_r``: the correlation of the mean
+        residual with wavelength; 0 when the residual vanishes.
+
+    Raises:
+        ValueError: On empty or non-finite input, width mismatches, or
+            a zero reference curve.
+    """
+    delta = _check_curves(delta)
+    reference = np.asarray(reference_mean_curve, dtype=float)
+    wavelengths_nm = np.asarray(wavelengths_nm, dtype=float)
+    if reference.shape != (delta.shape[1],):
+        raise ValueError(
+            f"reference curve has shape {reference.shape}, expected ({delta.shape[1]},)"
+        )
+    if wavelengths_nm.shape != (delta.shape[1],):
+        raise ValueError(
+            f"wavelengths have shape {wavelengths_nm.shape}, expected ({delta.shape[1]},)"
+        )
+    if not np.isfinite(reference).all() or not np.isfinite(wavelengths_nm).all():
+        raise ValueError("reference curve and wavelengths must be finite")
+    reference_norm = np.linalg.norm(reference)
+    if reference_norm == 0.0:
+        raise ValueError("the reference mean curve has no direction to project on")
+    unit = reference / reference_norm
+    projections = delta @ unit
+    squared_norms = np.einsum("ij,ij->i", delta, delta)
+    nonzero = squared_norms > 0.0
+    if nonzero.any():
+        per_code = float(np.mean((projections[nonzero] ** 2) / squared_norms[nonzero]))
+    else:
+        per_code = 0.0
+    mean_delta = delta.mean(axis=0)
+    mean_norm = float(mean_delta @ mean_delta)
+    if mean_norm == 0.0:
+        return {
+            "amplitude_fraction": 0.0,
+            "amplitude_fraction_per_code_mean": per_code,
+            "residual_wavelength_pearson_r": 0.0,
+        }
+    amplitude_fraction = float((mean_delta @ unit) ** 2 / mean_norm)
+    residual = mean_delta - (mean_delta @ unit) * unit
+    # Projection dust from floating-point rounding is not a residual.
+    if float(residual @ residual) <= 1e-24 * mean_norm:
+        residual_r = 0.0
+    else:
+        residual_r = float(np.corrcoef(residual, wavelengths_nm)[0, 1])
+    return {
+        "amplitude_fraction": amplitude_fraction,
+        "amplitude_fraction_per_code_mean": per_code,
+        "residual_wavelength_pearson_r": residual_r,
+    }
+
+
 def thickness_slice_errors(
     per_film_errors: np.ndarray,
     thickness_nm: np.ndarray,
