@@ -1,7 +1,7 @@
 {
   "coupling": {
     "arithmetic_coupling": -0.6916907305382267,
-    "conditioned_autoencoder_codes": -0.034798494535192154,
+    "conditioned_autoencoder_codes": -0.7604132011164021,
     "conditioned_variational_kl_0.00664": -0.6267257629086059,
     "heldout_measured": -0.7350213767673713,
     "independent_marginal_pca": 0.03773974788700727,
@@ -30,35 +30,37 @@
       "sampling_seed": 4
     },
     "conditioned_autoencoder_codes": {
-      "coupling_pearson_r": -0.034798494535192154,
+      "code_pairing": "joint_cosampling",
+      "coupling_pearson_r": -0.7604132011164021,
       "covariance_vs_heldout_a_space": {
-        "correlation_relative_frobenius": 0.5273978128168021,
-        "covariance_relative_frobenius": 9.387505234664944
+        "correlation_relative_frobenius": 0.19087978831518893,
+        "covariance_relative_frobenius": 1.9963307118431741
       },
       "covariance_vs_heldout_q_space": {
-        "correlation_relative_frobenius": 0.08193560653423497,
-        "covariance_relative_frobenius": 0.26274873840871454
+        "correlation_relative_frobenius": 0.06212290299703269,
+        "covariance_relative_frobenius": 0.34264919097260743
       },
       "mean_curve_deviation_vs_heldout_a_space": {
-        "max_abs": 1.3088551473340928,
-        "mean_abs": 0.4035051721456497
+        "max_abs": 0.7479626990220005,
+        "mean_abs": 0.06363752129693509
       },
       "mean_curve_deviation_vs_heldout_q_space": {
-        "max_abs": 0.001956084904685123,
-        "mean_abs": 0.0005587293832397551
+        "max_abs": 0.0013111548258842353,
+        "mean_abs": 0.0004615812109008208
       },
       "memorization": {
         "heldout_median": 0.005846457868505161,
         "heldout_q10": 0.00305825794654859,
         "heldout_q90": 0.014595598997544012,
-        "median_ratio": 1.5933244344787825,
-        "synthetic_median": 0.009315304177040015,
-        "synthetic_q10": 0.005541706845219585,
-        "synthetic_q90": 0.017878938347091772
+        "median_ratio": 1.4541874910544577,
+        "synthetic_median": 0.008501845899357112,
+        "synthetic_q10": 0.004543644350734485,
+        "synthetic_q90": 0.015706819470538546
       },
       "sampling_seed": 7
     },
     "conditioned_variational_kl_0.00664": {
+      "code_pairing": "prior_codes_plus_measured_t",
       "coupling_pearson_r": -0.6267257629086059,
       "covariance_vs_heldout_a_space": {
         "correlation_relative_frobenius": 0.39536854926945514,
@@ -88,6 +90,7 @@
       "sampling_seed": 8
     },
     "independent_marginal_pca": {
+      "code_pairing": "independent_marginals",
       "coupling_pearson_r": 0.03773974788700727,
       "covariance_vs_heldout_a_space": {
         "correlation_relative_frobenius": 0.5856571136002741,
@@ -224,7 +227,7 @@
       "licence": "CC BY 4.0"
     },
     "git": {
-      "revision": "b57a0aaefbd7d12f562101f019ced5764d00e13d",
+      "revision": "4aeb451d74c487c94dda26a7f53b95a0ee38d69a",
       "tracked_changes": [],
       "untracked_source": []
     },
@@ -798,32 +801,32 @@
   "robustness": {
     "autoencoder": [
       {
-        "coupling_pearson_r": -0.034798494535192154,
-        "covariance_relative_frobenius_q_space": 0.26274873840871454,
+        "coupling_pearson_r": -0.7604132011164021,
+        "covariance_relative_frobenius_q_space": 0.34264919097260743,
         "heldout_reconstruction_a_space_nm_squared": 0.022885060064157657,
         "heldout_reconstruction_nm_squared": 1.3710716427020277e-07,
         "heldout_reconstruction_standardized": 0.009395202621817589,
-        "memorization_median_ratio": 1.5933244344787825,
+        "memorization_median_ratio": 1.4541874910544577,
         "sampling_seed": 7,
         "seed": 1
       },
       {
-        "coupling_pearson_r": -0.10210688237083372,
-        "covariance_relative_frobenius_q_space": 0.266129565397201,
+        "coupling_pearson_r": -0.7420168264772928,
+        "covariance_relative_frobenius_q_space": 0.3565288793516094,
         "heldout_reconstruction_a_space_nm_squared": 0.01517535019357579,
         "heldout_reconstruction_nm_squared": 9.412943221400667e-08,
         "heldout_reconstruction_standardized": 0.006947614718228579,
-        "memorization_median_ratio": 1.6274191180743962,
+        "memorization_median_ratio": 1.4552792584290974,
         "sampling_seed": 114,
         "seed": 11
       },
       {
-        "coupling_pearson_r": 0.01325558448352482,
-        "covariance_relative_frobenius_q_space": 0.42586371793906347,
+        "coupling_pearson_r": -0.6921181898638973,
+        "covariance_relative_frobenius_q_space": 0.4451214320449153,
         "heldout_reconstruction_a_space_nm_squared": 0.020605229808237983,
         "heldout_reconstruction_nm_squared": 1.1507696072377355e-07,
         "heldout_reconstruction_standardized": 0.008338011801242828,
-        "memorization_median_ratio": 1.749635392143891,
+        "memorization_median_ratio": 1.5147803607728771,
         "sampling_seed": 124,
         "seed": 21
       }
@@ -835,8 +838,8 @@
     ],
     "summary": {
       "autoencoder_coupling_pearson_r": {
-        "mean": -0.041216597474167026,
-        "std": 0.04731468217288866
+        "mean": -0.731516072485864,
+        "std": 0.028853093609828857
       },
       "autoencoder_reconstruction_nm_squared": {
         "mean": 1.15437852402661e-07,
