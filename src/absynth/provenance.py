@@ -45,17 +45,17 @@ def _path_is_untracked(relative: str, untracked_directories: set[str]) -> bool:
 
 
 def git_provenance(config_path: Path, script_path: Path) -> dict[str, object] | None:
-    """Revision, tracked changes, and untracked files that shape the run.
+    """Revision, tracked source changes, and untracked files that shape the run.
 
     Three facts, each stated with its own precision. The revision is
     the exact code state when tracked files are unmodified.
-    ``tracked_changes`` names tracked files that differ from it. Of
-    all untracked files, only those that actually shape the numbers
-    are reported: modules the interpreter imported from the package
-    tree, the calling script, and the configuration file. Data,
-    records and figures are untracked too, but they enter provenance
-    through other fields (the dataset checksum, the record itself),
-    so they are not listed.
+    ``tracked_changes`` names tracked source files that differ from
+    it. Generated artifacts are excluded on both sides: records and
+    figures never shape a run — the numbers depend on sources,
+    configs and the data checksum, and each artifact carries its own
+    provenance. On the untracked side, only files that actually shape
+    the numbers are reported: modules the interpreter imported from
+    the package tree, the calling script, and the configuration file.
 
     Args:
         config_path: Path of the configuration file the run reads.
@@ -71,7 +71,15 @@ def git_provenance(config_path: Path, script_path: Path) -> dict[str, object] | 
     # A wholly untracked directory collapses to one "?? directory/"
     # entry, so membership has to ask about ancestor directories too.
     untracked = {line[3:].rstrip("/") for line in status.splitlines() if line[:2] == "??"}
-    tracked_changes = [line[3:] for line in status.splitlines() if line[:2] != "??"]
+    # Generated artifacts never shape a run, so modified records and
+    # figures stay out of the tracked changes — the tracked-side
+    # counterpart of the untracked_source rule below.
+    generated = ("reports/", "figures/")
+    tracked_changes = [
+        line[3:]
+        for line in status.splitlines()
+        if line[:2] != "??" and not line[3:].startswith(generated)
+    ]
 
     package_root = Path(absynth.__file__).resolve().parent
     shaped: set[Path] = {script_path.resolve(), config_path.resolve()}

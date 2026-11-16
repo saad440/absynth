@@ -10,7 +10,7 @@ It fits the two statistical baselines on the training films selected
 by :func:`absynth.splits.date_block_holdout`, evaluates them against
 held-out films with :mod:`absynth.evaluation`, and writes one JSON
 record plus two figures. The record carries the configuration path,
-git state (revision, plus whether tracked files are modified), seeds,
+git state (revision, plus modified tracked source files), seeds,
 package versions and the dataset checksum, so the pilot can be
 reproduced and its provenance audited.
 """
