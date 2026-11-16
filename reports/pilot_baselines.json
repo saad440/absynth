@@ -56,7 +56,7 @@
       "licence": "CC BY 4.0"
     },
     "git": {
-      "revision": "f4eccb3d671ad15c5d020bc52c6faf8aa4e9303e",
+      "revision": "8822ee4c464dfc8d90142016cb995f6f94292613",
       "tracked_changes": [],
       "untracked_source": []
     },
@@ -64,7 +64,8 @@
       "absynth": "0.1.0",
       "matplotlib": "3.11.2",
       "numpy": "2.5.4",
-      "scikit-learn": "1.9.1"
+      "scikit-learn": "1.9.1",
+      "torch": "2.15.0+cpu"
     },
     "split": {
       "families": {
