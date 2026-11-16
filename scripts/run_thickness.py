@@ -397,6 +397,23 @@ def main() -> None:
     # thicknesses, the same conversion the generated films undergo.
     held_out_a = absorbance_from_q(held_out, held_out_thickness)
 
+    # The measured counterpart of the conditioning sensitivity: the
+    # held-out thin-half mean minus thick-half mean, split at the
+    # median thickness and decomposed the same way. Read against it,
+    # the models' amplitude and residual numbers say whether their
+    # thickness response follows the population's own variation.
+    thin = held_out[held_out_thickness <= np.median(held_out_thickness)]
+    thick = held_out[held_out_thickness > np.median(held_out_thickness)]
+    measured_sensitivity = sensitivity_decomposition(
+        (thin.mean(axis=0) - thick.mean(axis=0))[np.newaxis, :],
+        held_out.mean(axis=0),
+        wavelengths_nm,
+    )
+    measured_sensitivity["population"] = "held-out"
+    measured_sensitivity["split"] = "median thickness"
+    measured_sensitivity["median_nm"] = float(np.median(held_out_thickness))
+    measured_sensitivity["delta"] = "thin-half mean minus thick-half mean"
+
     n_slices = int(config["thickness_slices"]["n_slices"])
     # The evaluation partition comes from the held-out thicknesses
     # themselves: equal film counts per slice, full coverage, and the
@@ -829,6 +846,7 @@ def main() -> None:
             },
             "heldout_coupling_pearson_r": heldout_coupling,
             "absorbance_scaling": absorbance_scaling,
+            "measured_sensitivity": measured_sensitivity,
         },
         "thickness_slices": {
             "n_slices": slice_generator.n_slices,
@@ -890,6 +908,14 @@ def main() -> None:
                 conditioned_vae_thickness,
                 _integrated_q(conditioned_vae_curves, wavelengths_nm),
                 "tab:orange",
+                ".",
+                0.25,
+            ),
+            (
+                "conditioned AE (joint cosampling)",
+                conditioned_ae_thickness,
+                _integrated_q(conditioned_ae_curves, wavelengths_nm),
+                "tab:cyan",
                 ".",
                 0.25,
             ),
