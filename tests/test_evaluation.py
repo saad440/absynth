@@ -5,6 +5,7 @@ import pytest
 
 from absynth.baselines import fit_pca_generator
 from absynth.evaluation import (
+    arithmetic_coupling_pairs,
     component_scores,
     coupling_record,
     covariance_record,
@@ -13,6 +14,7 @@ from absynth.evaluation import (
     memorization_record,
     nearest_training_distances,
     quantile_band,
+    scaling_exponent,
     thickness_slice_errors,
 )
 
@@ -196,6 +198,94 @@ def test_coupling_rejects_invalid_input():
         coupling_record(np.array([1.0, np.nan]), np.array([100.0, 200.0]))
     with pytest.raises(ValueError, match="constant"):
         coupling_record(np.array([0.5, 0.5, 0.5]), np.array([100.0, 200.0, 300.0]))
+
+
+def test_arithmetic_coupling_of_constant_absorbance_is_the_hyperbolic_coupling():
+    # ∫A held fixed while t varies freely reduces the reference
+    # population's summary to c/t. Its coupling then reproduces the
+    # pure-definition value, strongly negative over a wide range, and
+    # an independent recomputation from the same generator state
+    # returns it exactly.
+    rng = np.random.default_rng(7)
+    thickness = np.linspace(100.0, 1900.0, 400)
+    reference_q, reference_t = arithmetic_coupling_pairs(
+        np.full(400, 0.6), thickness, 20_000, rng
+    )
+    record = coupling_record(reference_q, reference_t)["pearson_r"]
+    assert record == pytest.approx(
+        coupling_record(0.6 / reference_t, reference_t)["pearson_r"]
+    )
+    assert -0.9 < record < -0.6
+
+
+def test_arithmetic_coupling_turns_exact_proportionality_strongly_negative():
+    # Exact proportionality, ∫A ∝ t, gives r = +1 with t; Beer–Lambert
+    # predicts exactly this for the integrated summary. Pairing the
+    # same summaries with thicknesses independently and converting
+    # back through q = A/t produces a strongly negative coupling from
+    # arithmetic alone. No physics is involved anywhere.
+    rng = np.random.default_rng(11)
+    thickness = np.linspace(100.0, 1900.0, 400)
+    summaries = 0.6 * thickness
+    assert coupling_record(summaries, thickness)["pearson_r"] == pytest.approx(1.0)
+    reference_q, reference_t = arithmetic_coupling_pairs(
+        summaries, thickness, 20_000, rng
+    )
+    assert coupling_record(reference_q, reference_t)["pearson_r"] < -0.5
+
+
+def test_arithmetic_coupling_rejects_invalid_input():
+    rng = np.random.default_rng(0)
+    with pytest.raises(ValueError, match="one thickness per absorbance summary"):
+        arithmetic_coupling_pairs(np.zeros(3), np.zeros(2), 10, rng)
+    with pytest.raises(ValueError, match="finite"):
+        arithmetic_coupling_pairs(np.array([1.0, np.nan]), np.array([100.0, 200.0]), 10, rng)
+    with pytest.raises(ValueError, match="constant"):
+        arithmetic_coupling_pairs(np.array([0.5, 0.5]), np.array([100.0, 200.0]), 10, rng)
+    with pytest.raises(ValueError, match="positive to convert"):
+        arithmetic_coupling_pairs(np.array([0.5, 0.6]), np.array([100.0, 0.0]), 10, rng)
+    with pytest.raises(ValueError, match="n_samples must be positive"):
+        arithmetic_coupling_pairs(np.array([0.5, 0.6]), np.array([100.0, 200.0]), 0, rng)
+
+
+def test_scaling_exponent_recovers_an_exact_power_law():
+    # ∫A = c·t^β is linear in log-log: the fit reads β back to
+    # machine precision, and the bootstrap band of an exact relation
+    # contains it.
+    thickness = np.array([100.0, 250.0, 500.0, 1000.0, 1900.0])
+    summaries = 0.6 * thickness**0.5
+    record = scaling_exponent(summaries, thickness, np.random.default_rng(5), n_bootstrap=500)
+    assert record["slope"] == pytest.approx(0.5, abs=1e-9)
+    low, high = record["slope_ci95"]
+    assert low <= 0.5 <= high
+
+
+def test_scaling_exponent_is_reproducible_and_brackets_its_fit():
+    # Multiplicative film-to-film scatter around exact proportionality
+    # keeps the fitted exponent near 1; the same generator state
+    # reproduces the band exactly, and the band brackets the fit.
+    thickness = np.linspace(150.0, 1900.0, 60)
+    scatter = np.random.default_rng(2).uniform(0.95, 1.05, 60)
+    summaries = 0.6 * thickness * scatter
+    first = scaling_exponent(summaries, thickness, np.random.default_rng(5), n_bootstrap=400)
+    second = scaling_exponent(summaries, thickness, np.random.default_rng(5), n_bootstrap=400)
+    assert first == second
+    low, high = first["slope_ci95"]
+    assert low < first["slope"] < high
+
+
+def test_scaling_exponent_rejects_invalid_input():
+    rng = np.random.default_rng(0)
+    with pytest.raises(ValueError, match="one thickness per absorbance summary"):
+        scaling_exponent(np.zeros(3), np.zeros(2), rng)
+    with pytest.raises(ValueError, match="strictly positive"):
+        scaling_exponent(np.array([0.6, -0.1]), np.array([100.0, 200.0]), rng)
+    with pytest.raises(ValueError, match="strictly positive"):
+        scaling_exponent(np.array([0.6, 0.7]), np.array([100.0, 0.0]), rng)
+    with pytest.raises(ValueError, match="constant"):
+        scaling_exponent(np.array([0.6, 0.7]), np.array([100.0, 100.0]), rng)
+    with pytest.raises(ValueError, match="n_bootstrap must be positive"):
+        scaling_exponent(np.array([0.6, 0.7]), np.array([100.0, 200.0]), rng, n_bootstrap=0)
 
 
 def test_slice_errors_are_exact_slice_means():

@@ -12,7 +12,10 @@ questions this module quantifies:
 - **Coupling.** Do curves and thicknesses go together in a
   generated population as they do in measured films? The correlation
   between a per-film curve summary and thickness, read against the
-  measured value.
+  measured value, against a pairing-erased reference, and against
+  the coupling that the definition ``q = A/t`` produces by division
+  alone, since the division already accounts for part of any such
+  correlation.
 - **Thickness resolution.** Where does a model's error live along
   the thickness range? Per-film errors averaged inside thickness
   slices, which the population mean cannot show.
@@ -256,7 +259,11 @@ def coupling_record(
     therefore not against zero but across populations: measured films
     set the value, resampled measured films reproduce it exactly, and
     curves paired with independently drawn thicknesses collapse it
-    toward 0, erasing the coupling.
+    toward 0, erasing the coupling. :func:`arithmetic_coupling_pairs`
+    completes the reference set. It breaks the pairing before the
+    conversion ``q = A/t``, isolating the coupling the definition
+    alone produces, so a measured or generated correlation reads
+    against both ends.
 
     Args:
         curve_summaries: One summary per film, shape ``(n_films,)``,
@@ -286,6 +293,163 @@ def coupling_record(
     if summaries.std() == 0.0 or thickness_nm.std() == 0.0:
         raise ValueError("a constant array has no correlation with anything")
     return {"pearson_r": float(np.corrcoef(summaries, thickness_nm)[0, 1])}
+
+
+def arithmetic_coupling_pairs(
+    absorbance_summaries: np.ndarray,
+    thickness_nm: np.ndarray,
+    n_samples: int,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """The coupling that the definition ``q = A/t`` produces by division alone.
+
+    Integrated absorbances and thicknesses are drawn independently,
+    each keeping its own measured distribution while the pairing
+    between them breaks, and the drawn pairs convert back through
+    ``q = A/t``. Division then drives the whole correlation of the
+    resulting population. At the same absorbance, a film ten times
+    thicker carries a ``q`` ten times smaller, and across films that
+    shows up as a negative correlation with no physics in it. Any
+    measured or generated coupling must clear this *arithmetic
+    coupling* before it counts as physics. The companion reference,
+    the independent pairing evaluated directly in q-space, collapses
+    the correlation to ≈ 0, so a measured or generated value between
+    the two states how far a population departs from pure definition.
+    Generator comparisons draw matched-size populations; this
+    reference only needs enough draws for the comparison's precision.
+
+    Args:
+        absorbance_summaries: One integrated absorbance per film,
+            shape ``(n_films,)``, dimensionless — the quantity whose
+            pairing with thickness the conversion consumes.
+        thickness_nm: Film thickness in nm, same length and order,
+            strictly positive.
+        n_samples: Number of reference pairs to draw; each draw picks
+            one measured summary and one measured thickness,
+            independently.
+        rng: Numpy random generator; the draw is reproducible for a
+            given generator state.
+
+    Returns:
+        Tuple ``(q_summaries, thickness_drawn)``: the reference
+        summaries, in the unit of the input summaries divided by nm,
+        and the paired thicknesses in nm, aligned row by row.
+
+    Raises:
+        ValueError: If the arrays are empty, unequal in length,
+            non-finite, constant, or the thickness is non-positive,
+            or the requested count is not positive.
+    """
+    summaries = np.asarray(absorbance_summaries, dtype=float)
+    thickness_nm = np.asarray(thickness_nm, dtype=float)
+    if summaries.ndim != 1 or summaries.size == 0:
+        raise ValueError("absorbance summaries must be a non-empty 1-D array")
+    if thickness_nm.shape != summaries.shape:
+        raise ValueError(
+            f"thickness has shape {thickness_nm.shape}, expected {summaries.shape}; "
+            "one thickness per absorbance summary"
+        )
+    if not np.isfinite(summaries).all() or not np.isfinite(thickness_nm).all():
+        raise ValueError("summaries and thickness must be finite")
+    if summaries.std() == 0.0 or thickness_nm.std() == 0.0:
+        raise ValueError("a constant array has no coupling to preserve")
+    if (thickness_nm <= 0).any():
+        raise ValueError("thickness must be positive to convert between A and q")
+    if n_samples <= 0:
+        raise ValueError(f"n_samples must be positive, got {n_samples}")
+    summary_indices = rng.integers(0, summaries.size, size=n_samples)
+    thickness_indices = rng.integers(0, thickness_nm.size, size=n_samples)
+    # Two independent index draws: the pairing is erased at the
+    # source, before the conversion the definition performs.
+    null_q = summaries[summary_indices] / thickness_nm[thickness_indices]
+    return null_q, thickness_nm[thickness_indices]
+
+
+def scaling_exponent(
+    absorbance_summaries: np.ndarray,
+    thickness_nm: np.ndarray,
+    rng: np.random.Generator,
+    n_bootstrap: int = 2000,
+) -> dict[str, object]:
+    """The population's aggregate absorbance–thickness scaling, ``∫A ∝ t^β``.
+
+    The least-squares slope of log ∫A against log t, with a bootstrap
+    band over films (2.5–97.5 percentiles of refitted slopes). Under
+    exact wavelength-level proportionality the integrated summary
+    scales linearly and β̂ ≈ 1, so β̂ < 1 measures the population's
+    departure from proportionality. One instrumental mechanism alone
+    can produce such a departure. Where transmission reaches the
+    detector floor, base-10 absorbance stops growing whatever the
+    material does, and a band integral then grows sublinearly even
+    with proportionality at every measured wavelength. Read the
+    exponent as a population-level characterisation; separating that
+    mechanism from microstructure takes wavelength-resolved analysis.
+
+    Args:
+        absorbance_summaries: One integrated absorbance per film,
+            shape ``(n_films,)``, strictly positive so the logarithm
+            is defined.
+        thickness_nm: Film thickness in nm, same length and order,
+            strictly positive and not all identical, so the fit has
+            spread on both axes.
+        rng: Numpy random generator driving the bootstrap resampling;
+            the interval is reproducible for a given generator state.
+        n_bootstrap: Number of bootstrap resamples behind the
+            interval; must be positive.
+
+    Returns:
+        ``slope`` (the exponent β̂), ``intercept``, and ``slope_ci95``
+        (the 2.5–97.5 percentile band of the bootstrap slopes).
+
+    Raises:
+        ValueError: If the arrays are empty, unequal in length,
+            non-finite or non-positive, if the thickness is constant,
+            or ``n_bootstrap`` is not positive.
+    """
+    summaries = np.asarray(absorbance_summaries, dtype=float)
+    thickness_nm = np.asarray(thickness_nm, dtype=float)
+    if summaries.ndim != 1 or summaries.size == 0:
+        raise ValueError("absorbance summaries must be a non-empty 1-D array")
+    if thickness_nm.shape != summaries.shape:
+        raise ValueError(
+            f"thickness has shape {thickness_nm.shape}, expected {summaries.shape}; "
+            "one thickness per absorbance summary"
+        )
+    if not np.isfinite(summaries).all() or not np.isfinite(thickness_nm).all():
+        raise ValueError("summaries and thickness must be finite")
+    if (summaries <= 0).any() or (thickness_nm <= 0).any():
+        raise ValueError(
+            "summaries and thickness must be strictly positive for a log-log fit"
+        )
+    if thickness_nm.std() == 0.0:
+        raise ValueError("a constant array has no coupling to preserve")
+    if n_bootstrap <= 0:
+        raise ValueError(f"n_bootstrap must be positive, got {n_bootstrap}")
+    log_thickness = np.log(thickness_nm)
+    log_summaries = np.log(summaries)
+    slope, intercept = np.polyfit(log_thickness, log_summaries, 1)
+    slopes = []
+    attempts = 0
+    while len(slopes) < n_bootstrap:
+        attempts += 1
+        if attempts > 100 * n_bootstrap:
+            raise ValueError(
+                "bootstrap could not draw a non-degenerate resample; "
+                "the thickness spread is too small"
+            )
+        indices = rng.integers(0, summaries.size, size=summaries.size)
+        # A resample holding one distinct thickness has no slope; it
+        # is skipped rather than counted.
+        if np.ptp(log_thickness[indices]) == 0.0:
+            continue
+        fit = np.polyfit(log_thickness[indices], log_summaries[indices], 1)
+        slopes.append(float(fit[0]))
+    lo, hi = np.quantile(slopes, [0.025, 0.975])
+    return {
+        "slope": float(slope),
+        "intercept": float(intercept),
+        "slope_ci95": [float(lo), float(hi)],
+    }
 
 
 def thickness_slice_errors(

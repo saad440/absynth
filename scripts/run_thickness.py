@@ -16,9 +16,14 @@ three fronts:
 
 - **Coupling.** The correlation between integrated ``q`` and
   thickness in generated pairs, read against held-out films, the
-  joint resampling floor, and a labelled demonstration of independent
+  joint resampling floor, a labelled demonstration of independent
   pairing (the PCA curves with independently drawn thicknesses),
-  which erases the coupling by construction.
+  which erases the coupling by construction, and the arithmetic
+  coupling, which pairs integrated absorbance with independently
+  drawn thicknesses and converts back through ``q = A/t``, so the
+  division alone drives the whole correlation. The training
+  population's absorbance scaling ``∫A ∝ t^β``, a log-log slope with
+  a bootstrap band, is reported alongside.
 - **Thickness resolution.** Per-film held-out reconstruction errors
   averaged inside thickness slices, per model, in q-space and after
   conversion to absorbance, where a thick film's error is
@@ -57,6 +62,7 @@ from torch.nn.functional import mse_loss
 from absynth.baselines import fit_pca_generator
 from absynth.data import DATASETS
 from absynth.evaluation import (
+    arithmetic_coupling_pairs,
     component_scores,
     coupling_record,
     covariance_record,
@@ -64,6 +70,7 @@ from absynth.evaluation import (
     memorization_record,
     nearest_training_distances,
     quantile_band,
+    scaling_exponent,
     thickness_slice_errors,
 )
 from absynth.explore import nearest_neighbour_distances
@@ -386,6 +393,10 @@ def main() -> None:
     evaluation_edges = np.quantile(held_out_thickness, np.linspace(0.0, 1.0, n_slices + 1))
 
     n_samples = int(config["sampling"]["n_samples"])
+    # The arithmetic coupling only needs enough draws for a tight
+    # value. 20,000 draws put one standard error near ±0.007, small
+    # next to the scatter of any real comparison.
+    n_reference_draws = 20_000
     base_seed = int(config["sampling"]["seed"])
     floor_seed = int(config["sampling"]["floor_seed"])
     kl_weight = float(config["variational"]["kl_weight"])
@@ -429,6 +440,11 @@ def main() -> None:
         "independent_marginal_pca": base_seed + 6,
         # Drives the code draws of the conditioning sensitivity check.
         "conditioning_sensitivity": base_seed + 7,
+        # The arithmetic-coupling pairing draw and the absorbance-
+        # scaling bootstrap, both drawn from the measured training
+        # distributions.
+        "arithmetic_coupling": base_seed + 8,
+        "absorbance_scaling": base_seed + 9,
     }
 
     print("drawing synthetic films ...", flush=True)
@@ -462,9 +478,33 @@ def main() -> None:
     heldout_coupling = coupling_record(
         _integrated_q(held_out, wavelengths_nm), held_out_thickness
     )["pearson_r"]
+    # The film-level reading of the same association works out, per
+    # film, to ∫A = t·∫q exactly, because the trapezoid integral is
+    # linear in the curve and each film's thickness is one constant
+    # factor. The arithmetic coupling and the scaling exponent read
+    # the training distributions, the ones every generator draws from.
+    training_integrated_a = _integrated_q(train, wavelengths_nm) * train_thickness
 
     print("evaluating ...", flush=True)
     coupling = {"heldout_measured": heldout_coupling}
+    reference_q, reference_t = arithmetic_coupling_pairs(
+        training_integrated_a,
+        train_thickness,
+        n_reference_draws,
+        np.random.default_rng(sampling_seeds["arithmetic_coupling"]),
+    )
+    coupling["arithmetic_coupling"] = coupling_record(reference_q, reference_t)[
+        "pearson_r"
+    ]
+    absorbance_scaling = scaling_exponent(
+        training_integrated_a,
+        train_thickness,
+        np.random.default_rng(sampling_seeds["absorbance_scaling"]),
+    )
+    absorbance_scaling["population"] = "training"
+    absorbance_scaling["absorbance_coupling_pearson_r"] = coupling_record(
+        training_integrated_a, train_thickness
+    )["pearson_r"]
     generation = {
         "pca": _curve_distribution_metrics(pca_curves, train, held_out, sampling_seeds["pca"]),
         "autoencoder_codes": _curve_distribution_metrics(
@@ -763,6 +803,7 @@ def main() -> None:
                 "max": float(held_out_thickness.max()),
             },
             "heldout_coupling_pearson_r": heldout_coupling,
+            "absorbance_scaling": absorbance_scaling,
         },
         "thickness_slices": {
             "n_slices": slice_generator.n_slices,
@@ -810,6 +851,14 @@ def main() -> None:
                 "tab:green",
                 ".",
                 0.25,
+            ),
+            (
+                r"arithmetic coupling ($\int A \perp t$)",
+                reference_t,
+                reference_q,
+                "tab:purple",
+                ".",
+                0.15,
             ),
             (
                 f"conditioned VAE, kl = {kl_weight:.4g}",
