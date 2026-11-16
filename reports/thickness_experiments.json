@@ -227,7 +227,7 @@
       "licence": "CC BY 4.0"
     },
     "git": {
-      "revision": "a624377176a2004d94cbcbb685c90862f0fddada",
+      "revision": "ca409b1561b712254a92a41c7222e07ece075c18",
       "tracked_changes": [],
       "untracked_source": []
     },
@@ -793,6 +793,15 @@
       "max": 1299.5,
       "median": 437.0,
       "min": 176.5
+    },
+    "measured_sensitivity": {
+      "amplitude_fraction": 0.9553567079101196,
+      "amplitude_fraction_per_code_mean": 0.95535670791012,
+      "delta": "thin-half mean minus thick-half mean",
+      "median_nm": 437.0,
+      "population": "held-out",
+      "residual_wavelength_pearson_r": -0.7087168603291928,
+      "split": "median thickness"
     },
     "n_films": 517,
     "n_heldout_films": 100,
