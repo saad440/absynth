@@ -227,7 +227,7 @@
       "licence": "CC BY 4.0"
     },
     "git": {
-      "revision": "4aeb451d74c487c94dda26a7f53b95a0ee38d69a",
+      "revision": "a624377176a2004d94cbcbb685c90862f0fddada",
       "tracked_changes": [],
       "untracked_source": []
     },
@@ -421,9 +421,12 @@
     },
     "conditioned_autoencoder": {
       "conditioning_sensitivity": {
+        "amplitude_fraction": 0.3051021974151654,
+        "amplitude_fraction_per_code_mean": 0.24104327218890664,
         "heldout_mean_per_wavelength_std_nm_inverse": 0.002170725104374432,
         "mean_abs_decoding_change_nm_inverse": 0.12005414068698883,
         "ratio_to_heldout_spread": 55.30600832185359,
+        "residual_wavelength_pearson_r": 0.25675093362583357,
         "thickness_hi_nm": 719.1200000000001,
         "thickness_lo_nm": 214.8
       },
@@ -509,9 +512,12 @@
     },
     "conditioned_variational_kl_0.00664": {
       "conditioning_sensitivity": {
+        "amplitude_fraction": 0.8878787849429971,
+        "amplitude_fraction_per_code_mean": 0.8587187506399973,
         "heldout_mean_per_wavelength_std_nm_inverse": 0.002170725104374432,
         "mean_abs_decoding_change_nm_inverse": 0.6269394159317017,
         "ratio_to_heldout_spread": 288.8156656355506,
+        "residual_wavelength_pearson_r": 0.19775718970422118,
         "thickness_hi_nm": 719.1200000000001,
         "thickness_lo_nm": 214.8
       },
