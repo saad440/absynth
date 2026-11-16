@@ -1,5 +1,6 @@
 {
   "coupling": {
+    "arithmetic_coupling": -0.6916907305382267,
     "conditioned_autoencoder_codes": -0.034798494535192154,
     "conditioned_variational_kl_0.00664": -0.6267257629086059,
     "heldout_measured": -0.7350213767673713,
@@ -223,7 +224,7 @@
       "licence": "CC BY 4.0"
     },
     "git": {
-      "revision": "9c32d6d1116ba0aac0b626e96d779e3df3803b50",
+      "revision": "b57a0aaefbd7d12f562101f019ced5764d00e13d",
       "tracked_changes": [],
       "untracked_source": []
     },
@@ -235,6 +236,8 @@
       "torch": "2.15.0+cpu"
     },
     "sampling_seeds": {
+      "absorbance_scaling": 12,
+      "arithmetic_coupling": 11,
       "autoencoder_codes": 4,
       "conditioned_autoencoder_codes": 7,
       "conditioned_variational_kl_0.00664": 8,
@@ -766,6 +769,16 @@
     }
   },
   "reference_metrics": {
+    "absorbance_scaling": {
+      "absorbance_coupling_pearson_r": 0.5964969974574458,
+      "intercept": 5.053274841144256,
+      "population": "training",
+      "slope": 0.33200582445044946,
+      "slope_ci95": [
+        0.27984305029687945,
+        0.3858319534104174
+      ]
+    },
     "heldout_coupling_pearson_r": -0.7350213767673713,
     "heldout_thickness_nm": {
       "max": 1299.5,
