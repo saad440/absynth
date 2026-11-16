@@ -283,8 +283,29 @@ def test_conditioned_sample_returns_aligned_pairs():
     assert drawn_curves.shape == (25, GRID)
     assert drawn_thickness.shape == (25,)
     assert np.isfinite(drawn_curves).all()
-    # Every drawn thickness is a measured training thickness.
-    assert set(drawn_thickness.tolist()) <= set(thickness.tolist())
+    # Log-normal draws: strictly positive, and generically off the
+    # measured value set.
+    assert (drawn_thickness > 0).all()
+
+
+def test_conditioned_ae_sample_keeps_the_trained_pairing():
+    # The toy curves scale with thickness, so codes and thicknesses
+    # are positively dependent in training. The joint draw carries the
+    # dependence into the generated pairs, and the decoded curves
+    # track their cosampled thicknesses.
+    rng = np.random.default_rng(0)
+    thickness = np.linspace(150.0, 1900.0, 40)
+    grid = np.linspace(300.0, 900.0, GRID)
+    shape = 0.01 + 0.002 * (900.0 - grid) / 600.0
+    curves = shape[None, :] * thickness[:, None] / 1000.0
+    curves = curves + 0.0002 * rng.standard_normal(curves.shape)
+    result = train_thickness_conditioned_autoencoder(
+        curves, thickness, make_config(n_latent=2, epochs=250)
+    )
+    drawn_curves, drawn_thickness = result.sample(300, seed=3)
+    summaries = np.trapezoid(drawn_curves, grid, axis=1)
+    correlation = np.corrcoef(summaries, drawn_thickness)[0, 1]
+    assert correlation > 0.5
 
 
 def test_conditioned_sample_is_reproducible():

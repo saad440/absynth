@@ -537,6 +537,18 @@ def main() -> None:
     # The demonstration reuses the PCA curve samples, so its record
     # states both seeds: the curves' and the thicknesses'.
     generation["independent_marginal_pca"]["curve_sampling_seed"] = sampling_seeds["pca"]
+    # Each code-based pair generator carries its pairing scheme: the
+    # conditioned autoencoder cosamples codes and thicknesses from one
+    # joint Gaussian, the conditioned variational model draws prior
+    # codes against resampled measured thicknesses, and the
+    # demonstration pairs independently on purpose.
+    pairing_schemes = {
+        "conditioned_autoencoder_codes": "joint_cosampling",
+        conditioned_variational_name: "prior_codes_plus_measured_t",
+        "independent_marginal_pca": "independent_marginals",
+    }
+    for name, scheme in pairing_schemes.items():
+        generation[name]["code_pairing"] = scheme
 
     standardized_held_out = torch.from_numpy(
         autoencoder.standardizer.transform(held_out).astype(np.float32)

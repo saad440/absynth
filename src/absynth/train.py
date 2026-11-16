@@ -39,9 +39,12 @@ The thickness-conditioned variants run the same loops over (curve,
 thickness) pairs. Curves and thicknesses are standardized on
 training statistics, the thickness enters the decoder as an input
 next to the code, and the objective is unchanged. The trained fits
-draw films by resampling measured training thicknesses and decoding
-drawn codes at them, returning curve–thickness pairs in the same
-contract as the generators of absynth.thickness.
+draw films as curve–thickness pairs, in the same contract as the
+generators of absynth.thickness. The conditioned autoencoder
+cosamples codes and thicknesses from one joint Gaussian fitted to
+its training codes and log thicknesses, so generated pairs keep the
+trained pairing; the conditioned variational model draws codes from
+the prior and thicknesses from the measured values.
 
 Reproducibility: the configuration's seed drives the weight
 initialization and the batch shuffling through dedicated torch random
@@ -295,15 +298,16 @@ class TrainedThicknessConditionedAutoEncoder:
         thickness_standardizer: The scalar scaling fitted on the
             training thicknesses. Every thickness crossing between nm
             and the decoder's input passes through it.
-        thickness_nm: The training films' measured thicknesses in nm.
-            Generated films' thicknesses are drawn from these measured
-            values, with replacement.
+        thickness_nm: The training films' measured thicknesses in nm,
+            part of the population :meth:`sample` draws from: codes
+            and log thicknesses are drawn jointly, so generated pairs
+            keep the dependence the training pairing has.
         config: The configuration that produced the fit.
         codes: The final codes of the training films, shape
             ``(n_training, n_latent)``, computed after training from
             the fitted weights. The encoder is curve-only, so these
-            are the plain autoencoder's codes, and the population
-            :meth:`sample` draws from.
+            are the plain autoencoder's codes, and the other half of
+            the population :meth:`sample` draws from.
         epoch_losses: Mean squared error per epoch, in standardized
             units squared, averaged over all training films.
     """
@@ -317,23 +321,24 @@ class TrainedThicknessConditionedAutoEncoder:
     epoch_losses: tuple[float, ...]
 
     def sample(self, n_samples: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
-        """Draw films: measured thicknesses, code-Gaussian curves decoded at them.
+        """Draw films: cosampled codes and thicknesses, decoded curves.
 
-        Each returned pair is a generated film: a thickness the
-        campaign produced, and a curve of the kind the decoder builds
-        at that thickness. The thicknesses are drawn from the measured
-        training thicknesses with replacement, so the drawn thickness
-        distribution is the measured one. The codes are drawn from a
-        multivariate Gaussian fitted to the training codes, the
-        KL-free generator of :class:`TrainedAutoEncoder`, and decoded
-        at the drawn thicknesses. One numpy generator, seeded by
-        ``seed``, drives both draws in a fixed order, so the draw is
-        reproducible.
+        Each returned pair is a generated film: a thickness, and a
+        curve of the kind the decoder builds at it. One multivariate
+        Gaussian is fitted to the stacked training vectors of codes
+        and standardized log thicknesses, and the draw comes from it.
+        Codes encode ``q``, and ``q`` couples with thickness, so a
+        Gaussian fitted to the codes alone would pair codes with
+        thicknesses they never trained against; the joint fit keeps
+        generated pairs inside the trained pairing. The logarithm
+        keeps drawn thicknesses positive, which the measured range's
+        few standard deviations of headroom above zero could not.
+        One numpy generator, seeded by ``seed``, drives the draw, so
+        it is reproducible.
 
         Args:
             n_samples: Number of films to draw.
-            seed: Seed for the numpy generator driving the thickness
-                resampling and the code draws.
+            seed: Seed for the numpy generator driving the draw.
 
         Returns:
             Tuple ``(curves, thickness_nm)``: the drawn curve matrix
@@ -342,21 +347,28 @@ class TrainedThicknessConditionedAutoEncoder:
             row by row.
         """
         rng = np.random.default_rng(seed)
-        indices = rng.integers(0, self.thickness_nm.size, size=n_samples)
-        thickness_nm = self.thickness_nm[indices]
+        # The joint fit lives in [codes, standardized log thickness].
+        # The logarithm keeps drawn thicknesses positive by
+        # construction, and it is the natural coordinate for a
+        # positive scalar spanning an order of magnitude.
+        log_thickness = np.log(self.thickness_nm)
+        log_mean = log_thickness.mean()
+        log_std = log_thickness.std()
+        stacked = np.hstack([self.codes, ((log_thickness - log_mean) / log_std)[:, np.newaxis]])
+        drawn = rng.multivariate_normal(
+            mean=stacked.mean(axis=0),
+            cov=np.cov(stacked, rowvar=False),
+            size=n_samples,
+        )
+        drawn_codes = torch.from_numpy(np.ascontiguousarray(drawn[:, :-1]).astype(np.float32))
+        thickness_nm = np.exp(drawn[:, -1] * log_std + log_mean)
         thickness = torch.from_numpy(
             self.thickness_standardizer.transform(thickness_nm).astype(np.float32)
         )
-        drawn_codes = rng.multivariate_normal(
-            mean=self.codes.mean(axis=0),
-            cov=np.cov(self.codes, rowvar=False),
-            size=n_samples,
-        )
         with torch.no_grad():
-            standardized = self.model.decode(
-                torch.from_numpy(drawn_codes.astype(np.float32)), thickness
-            )
-        return self.standardizer.inverse_transform(standardized.numpy()), thickness_nm
+            standardized = self.model.decode(drawn_codes, thickness)
+        curves = self.standardizer.inverse_transform(standardized.numpy())
+        return curves, thickness_nm
 
 
 def train_thickness_conditioned_autoencoder(
